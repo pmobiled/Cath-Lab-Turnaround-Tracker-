@@ -214,6 +214,12 @@
     <button class="b-quiet" data-var="transfer" id="btn-transfer">Start</button>
   </div>
 
+  <div class="card">
+    <div class="eyebrow"><span>Notes</span><span class="chip" id="chip-notes">Empty</span></div>
+    <div class="desc">Anything the timers won't show — what caused it, who you waited on, what you'd change.</div>
+    <textarea id="t-notes" rows="3" placeholder="Type as it happens" style="margin-top:10px"></textarea>
+  </div>
+
   <button class="b-arrive hide" id="btn-arrive">Arrive in cath lab — stop all</button>
 </section>
 
@@ -279,7 +285,7 @@
   </div>
 </section>
 
-<div class="foot">v2.0 · timing survives screen lock<br><span id="foot-storage"></span></div>
+<div class="foot">v2.1 · timing survives screen lock<br><span id="foot-storage"></span></div>
 
 <script>
 "use strict";
@@ -305,7 +311,7 @@ const VARS = ["paperwork","meds","transfer"];
 const LABEL = { paperwork:"Consent & paperwork", meds:"Pre-op meds & prep", transfer:"Physical transfer & IVs" };
 const SHORT = { paperwork:"Paperwork", meds:"Meds/prep", transfer:"Transfer/IV" };
 const HUE   = { paperwork:"var(--paperwork)", meds:"var(--meds)", transfer:"var(--transfer)" };
-const APP_VERSION = "2.0";
+const APP_VERSION = "2.1";
 
 let cfg = JSON.parse(store.get(K.CFG) || "{}");
 let run = null;
@@ -635,6 +641,12 @@ $("btn-master").addEventListener("click", depart);
 $("btn-arrive").addEventListener("click", arrive);
 VARS.forEach(v => $("btn-"+v).addEventListener("click", () => toggleVar(v)));
 
+$("t-notes").addEventListener("input", () => {
+  run.meta.notes = $("t-notes").value;
+  $("chip-notes").textContent = run.meta.notes.trim() ? "Saved" : "Empty";
+  save();
+});
+
 $("btn-send").addEventListener("click", send);
 $("btn-flush").addEventListener("click", flush);
 $("btn-copy").addEventListener("click", () => { readMeta(); copyText(rowToTSV(buildRow()), "Row"); });
@@ -644,7 +656,8 @@ $("btn-new").addEventListener("click", () => {
   run = newRun();
   $("view-review").classList.add("hide");
   $("view-track").classList.remove("hide");
-  ["m-unit","m-notes"].forEach(id => $(id).value = "");
+  ["m-unit","m-notes","t-notes"].forEach(id => $(id).value = "");
+  $("chip-notes").textContent = "Empty";
   render(); $("ribbon").classList.add("hide");
   window.scrollTo(0,0);
 });
@@ -707,6 +720,8 @@ window.addEventListener("beforeunload", e => {
     } catch(e){}
   }
   if (!run) run = newRun();
+  $("t-notes").value = run.meta.notes || "";
+  $("chip-notes").textContent = (run.meta.notes || "").trim() ? "Saved" : "Empty";
   render();
 })();
 
