@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0E1116">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Turnaround Tracker</title>
+<style>
+  :root{
+    --ink:#0E1116;
+    --panel:#171C24;
+    --panel-2:#1F2630;
+    --line:#2B3441;
+    --text:#E8EDF2;
+    --muted:#8A97A6;
+    --wine:#A32A63;
+    --wine-dim:#5E1739;
+    --paperwork:#E8A33D;
+    --meds:#45A9B8;
+    --transfer:#8E7BE8;
+    --good:#35B07A;
+    --warn:#E05A4E;
+    --r:14px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;
+    line-height:1.4;
+    padding:14px 14px calc(28px + env(safe-area-inset-bottom));
+    max-width:480px;
+    margin:0 auto;
+    -webkit-text-size-adjust:100%;
+  }
+  .mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+
+  header{display:flex;align-items:baseline;justify-content:space-between;margin:2px 0 14px}
+  header h1{
+    font-size:.82rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    margin:0;color:var(--text);
+  }
+  header .sub{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .linkish{background:none;border:none;color:var(--muted);font-size:.72rem;letter-spacing:.08em;
+    text-transform:uppercase;padding:6px 2px;cursor:pointer;width:auto}
+
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    padding:14px;margin-bottom:12px;
+  }
+  .card.master{background:linear-gradient(180deg,#1C1420,#171C24);border-color:var(--wine-dim)}
+  .card.live{border-color:var(--wine)}
+
+  .eyebrow{
+    font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+    display:flex;justify-content:space-between;align-items:center;gap:8px;
+  }
+  .lane-key{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:7px;vertical-align:-1px}
+  .desc{font-size:.8rem;color:var(--muted);margin-top:4px}
+
+  .digits{font-size:2.6rem;font-weight:600;letter-spacing:.02em;margin:8px 0 4px}
+  .digits.sm{font-size:1.9rem}
+  .digits.idle{color:#4C5867}
+
+  button{
+    width:100%;min-height:58px;border:none;border-radius:10px;
+    font-size:1rem;font-weight:650;letter-spacing:.02em;
+    color:#0E1116;background:var(--text);cursor:pointer;touch-action:manipulation;
+    padding:14px;margin-top:10px;
+  }
+  button:focus-visible{outline:3px solid #6FA8FF;outline-offset:2px}
+  button:disabled{opacity:.5;cursor:default}
+  .b-go{background:var(--good);color:#06231A}
+  .b-live{background:var(--wine);color:#fff}
+  .b-stop{background:var(--warn);color:#2A0A07}
+  .b-quiet{background:var(--panel-2);color:var(--text);border:1px solid var(--line);min-height:48px;font-size:.9rem}
+  .b-arrive{background:var(--text);color:#0E1116;min-height:64px;font-size:1.05rem}
+  .row2{display:flex;gap:10px}
+  .row2>button{flex:1}
+
+  /* ---- concurrency ribbon: the signature view ---- */
+  .ribbon{margin-top:12px;border-top:1px solid var(--line);padding-top:12px}
+  .ribbon .scale{display:flex;justify-content:space-between;font-size:.65rem;color:var(--muted);
+    letter-spacing:.08em;margin-bottom:6px}
+  .lane{position:relative;height:16px;border-radius:5px;background:#111721;margin-bottom:5px;overflow:hidden}
+  .lane:last-child{margin-bottom:0}
+  .seg{position:absolute;top:0;bottom:0;border-radius:4px;min-width:2px}
+  .seg.open{animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+  @media (prefers-reduced-motion: reduce){.seg.open{animation:none}}
+
+  .chip{
+    display:inline-block;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 9px;
+  }
+  .chip.on{color:#0E1116;background:var(--paperwork);border-color:transparent}
+
+  label{display:block;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:12px 0 5px}
+  input,select,textarea{
+    width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);
+    border-radius:9px;padding:13px;font-size:16px;font-family:inherit;
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--wine);outline-offset:0;border-color:transparent}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid2 label{margin-top:12px}
+
+  table{width:100%;border-collapse:collapse;margin-top:6px}
+  td{padding:9px 0;border-bottom:1px solid var(--line);font-size:.9rem;vertical-align:baseline}
+  td:last-child{text-align:right;font-weight:650}
+  tr:last-child td{border-bottom:none}
+  td .note{display:block;font-size:.72rem;color:var(--muted);font-weight:400;letter-spacing:.02em}
+
+  .banner{border-radius:10px;padding:11px 13px;font-size:.85rem;margin-bottom:12px;border:1px solid}
+  .banner.info{background:#15202B;border-color:#2C4356;color:#BBD4E6}
+  .banner.warn{background:#2A1712;border-color:#5A2A20;color:#F0C0B6}
+  .banner.ok{background:#0F2820;border-color:#1F5340;color:#A9E3C9}
+  .hide{display:none !important}
+  .foot{font-size:.72rem;color:var(--muted);text-align:center;margin-top:14px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Turnaround Tracker</h1>
+    <div class="sub" id="hdr-state">Ready</div>
+  </div>
+  <button class="linkish" id="btn-settings" style="width:auto">Setup</button>
+</header>
+
+<div id="banner-recover" class="banner warn hide">
+  Unfinished run recovered from <span id="recover-when"></span>.
+  <div class="row2" style="margin-top:8px">
+    <button class="b-quiet" id="btn-resume">Keep tracking</button>
+    <button class="b-quiet" id="btn-discard">Discard it</button>
+  </div>
+</div>
+
+<div id="banner-queue" class="banner info hide">
+  <span id="queue-msg"></span>
+  <button class="b-quiet" id="btn-flush" style="margin-top:8px">Send now</button>
+</div>
+
+<!-- ============ SETTINGS ============ -->
+<section id="view-settings" class="hide">
+  <div class="card">
+    <div class="eyebrow">Google Sheets connection</div>
+    <label for="cfg-url">Apps Script web app URL</label>
+    <input id="cfg-url" type="url" inputmode="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+    <div class="desc">Paste the URL from Deploy → New deployment → Web app. Runs are saved on this phone until they reach the sheet, so a dead zone on the floor never costs you a data point.</div>
+    <label for="cfg-observer">Your initials (optional)</label>
+    <input id="cfg-observer" maxlength="4" placeholder="e.g. RN1" autocomplete="off">
+    <div class="desc">Logged with each run so you can check whether results differ by who is timing.</div>
+    <button class="b-quiet" id="btn-test">Test connection</button>
+    <div id="test-result" class="desc"></div>
+    <button class="b-go" id="btn-close-settings">Done</button>
+  </div>
+  <div class="card">
+    <div class="eyebrow">Local data</div>
+    <div class="desc" id="storage-note"></div>
+    <button class="b-quiet" id="btn-copy-queue">Copy unsent runs as text</button>
+  </div>
+</section>
+
+<!-- ============ TRACKING ============ -->
+<section id="view-track">
+
+  <div class="card master" id="card-master">
+    <div class="eyebrow"><span>Master timeline</span><span id="master-status">Not started</span></div>
+    <div class="digits mono idle" id="d-master">00:00</div>
+    <div class="desc">Door to door — leaving the lab until the patient is back in the room.</div>
+    <button class="b-go" id="btn-master">Depart for floor</button>
+
+    <div class="ribbon hide" id="ribbon">
+      <div class="scale"><span>Depart</span><span id="scale-now">now</span></div>
+      <div class="lane" id="lane-paperwork"></div>
+      <div class="lane" id="lane-meds"></div>
+      <div class="lane" id="lane-transfer"></div>
+      <div class="desc" id="ribbon-read">Every bar is a delay in progress. Bars stacked in the same column happened at the same time.</div>
+    </div>
+  </div>
+
+  <div class="card" id="card-paperwork">
+    <div class="eyebrow">
+      <span><i class="lane-key" style="background:var(--paperwork)"></i>Consent &amp; paperwork</span>
+      <span class="chip" id="chip-paperwork">Not yet</span>
+    </div>
+    <div class="digits sm mono idle" id="d-paperwork">00:00</div>
+    <div class="desc">Missing, incomplete, or unsigned preprinted consents.</div>
+    <button class="b-quiet" data-var="paperwork" id="btn-paperwork">Start</button>
+  </div>
+
+  <div class="card" id="card-meds">
+    <div class="eyebrow">
+      <span><i class="lane-key" style="background:var(--meds)"></i>Pre-op meds &amp; prep</span>
+      <span class="chip" id="chip-meds">Not yet</span>
+    </div>
+    <div class="digits sm mono idle" id="d-meds">00:00</div>
+    <div class="desc">Meds not given, patient not gowned, restroom, prep incomplete.</div>
+    <button class="b-quiet" data-var="meds" id="btn-meds">Start</button>
+  </div>
+
+  <div class="card" id="card-transfer">
+    <div class="eyebrow">
+      <span><i class="lane-key" style="background:var(--transfer)"></i>Physical transfer &amp; IVs</span>
+      <span class="chip" id="chip-transfer">Not yet</span>
+    </div>
+    <div class="digits sm mono idle" id="d-transfer">00:00</div>
+    <div class="desc">Room and equipment clearing, gray mattress roll, IV troubleshooting.</div>
+    <button class="b-quiet" data-var="transfer" id="btn-transfer">Start</button>
+  </div>
+
+  <button class="b-arrive hide" id="btn-arrive">Arrive in cath lab — stop all</button>
+</section>
+
+<!-- ============ REVIEW / EXPORT ============ -->
+<section id="view-review" class="hide">
+  <div class="card">
+    <div class="eyebrow"><span>Run summary</span><span id="review-clean"></span></div>
+    <div class="digits mono" id="r-total">00:00</div>
+    <div class="desc">Total turnaround, door to door.</div>
+    <table>
+      <tr><td>Moving the patient<span class="note">No delay running</span></td><td class="mono" id="r-moving">—</td></tr>
+      <tr><td>Any delay active<span class="note">Wall-clock time lost, overlap counted once</span></td><td class="mono" id="r-any">—</td></tr>
+      <tr><td>Two or more at once<span class="note">Compounding window</span></td><td class="mono" id="r-conc">—</td></tr>
+      <tr><td>Consent &amp; paperwork<span class="note" id="r-pw-n"></span></td><td class="mono" id="r-pw">—</td></tr>
+      <tr><td>Pre-op meds &amp; prep<span class="note" id="r-md-n"></span></td><td class="mono" id="r-md">—</td></tr>
+      <tr><td>Physical transfer &amp; IVs<span class="note" id="r-tr-n"></span></td><td class="mono" id="r-tr">—</td></tr>
+      <tr><td>Order they hit<span class="note">First trigger to last</span></td><td id="r-order">—</td></tr>
+    </table>
+    <div class="ribbon">
+      <div class="scale"><span>Depart</span><span id="r-scale-end">Arrive</span></div>
+      <div class="lane" id="r-lane-paperwork"></div>
+      <div class="lane" id="r-lane-meds"></div>
+      <div class="lane" id="r-lane-transfer"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="eyebrow">Context for this run</div>
+    <label for="m-unit">Unit or floor</label>
+    <input id="m-unit" list="unit-history" placeholder="e.g. 4 South" autocomplete="off">
+    <datalist id="unit-history"></datalist>
+    <div class="grid2">
+      <div>
+        <label for="m-room">Room</label>
+        <select id="m-room">
+          <option value="">—</option>
+          <option>Private</option>
+          <option>Semi-private</option>
+          <option>ICU / stepdown</option>
+          <option>ED</option>
+        </select>
+      </div>
+      <div>
+        <label for="m-mobility">Mobility</label>
+        <select id="m-mobility">
+          <option value="">—</option>
+          <option>Ambulatory</option>
+          <option>Assist</option>
+          <option>Non-ambulatory</option>
+        </select>
+      </div>
+    </div>
+    <label for="m-notes">Notes</label>
+    <textarea id="m-notes" rows="2" placeholder="Anything the numbers won't show"></textarea>
+    <div class="desc" style="margin-top:10px">No patient identifiers. Unit, room type, and mobility only.</div>
+  </div>
+
+  <div id="send-state" class="banner info hide"></div>
+  <button class="b-go" id="btn-send">Send to sheet</button>
+  <div class="row2">
+    <button class="b-quiet" id="btn-copy">Copy row</button>
+    <button class="b-quiet" id="btn-new">New run</button>
+  </div>
+</section>
+
+<div class="foot">v2.0 · timing survives screen lock<br><span id="foot-storage"></span></div>
+
+<script>
+"use strict";
+
+/* ---------------------------------------------------------------
+   Storage shim. Real localStorage when the file is hosted or saved
+   to the home screen; in-memory fallback inside sandboxed previews
+   so nothing throws.
+----------------------------------------------------------------*/
+const store = (() => {
+  let ok = false, mem = Object.create(null);
+  try { localStorage.setItem("__t","1"); localStorage.removeItem("__t"); ok = true; } catch(e) { ok = false; }
+  return {
+    persistent: ok,
+    get(k){ try { return ok ? localStorage.getItem(k) : (mem[k] ?? null); } catch(e){ return mem[k] ?? null; } },
+    set(k,v){ try { ok ? localStorage.setItem(k,v) : (mem[k]=v); } catch(e){ mem[k]=v; } },
+    del(k){ try { ok ? localStorage.removeItem(k) : delete mem[k]; } catch(e){ delete mem[k]; } }
+  };
+})();
+
+const K = { RUN:"clt_run", CFG:"clt_cfg", QUEUE:"clt_queue", UNITS:"clt_units" };
+const VARS = ["paperwork","meds","transfer"];
+const LABEL = { paperwork:"Consent & paperwork", meds:"Pre-op meds & prep", transfer:"Physical transfer & IVs" };
+const SHORT = { paperwork:"Paperwork", meds:"Meds/prep", transfer:"Transfer/IV" };
+const HUE   = { paperwork:"var(--paperwork)", meds:"var(--meds)", transfer:"var(--transfer)" };
+const APP_VERSION = "2.0";
+
+let cfg = JSON.parse(store.get(K.CFG) || "{}");
+let run = null;
+let ticker = null;
+
+/* ---------------------------- helpers ---------------------------- */
+const $ = id => document.getElementById(id);
+const now = () => Date.now();
+
+function fmt(sec){
+  sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  const mm = String(m).padStart(2,"0"), ss = String(s).padStart(2,"0");
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+function newRun(){
+  return {
+    id: "R" + now().toString(36) + Math.random().toString(36).slice(2,6),
+    startedAt: null,
+    endedAt: null,
+    segs: [],            // {v, in, out}  epoch ms, out=null while open
+    meta: { unit:"", room:"", mobility:"", notes:"" }
+  };
+}
+function save(){ if (run) store.set(K.RUN, JSON.stringify(run)); }
+function openSeg(v){ return run.segs.find(s => s.v === v && s.out === null) || null; }
+function segsOf(v){ return run.segs.filter(s => s.v === v); }
+function durOf(v, at){ return segsOf(v).reduce((t,s) => t + ((s.out ?? at) - s.in), 0) / 1000; }
+function masterSec(at){ return run && run.startedAt ? ((run.endedAt ?? at) - run.startedAt)/1000 : 0; }
+
+/* interval math on [in,out] ms pairs */
+function intervals(at, only){
+  return run.segs
+    .filter(s => !only || s.v === only)
+    .map(s => [s.in, s.out ?? at])
+    .filter(p => p[1] > p[0]);
+}
+function unionSec(list){
+  if (!list.length) return 0;
+  const a = list.slice().sort((x,y)=>x[0]-y[0]);
+  let total = 0, [cs, ce] = a[0];
+  for (let i=1;i<a.length;i++){
+    const [s,e] = a[i];
+    if (s <= ce) ce = Math.max(ce, e);
+    else { total += ce-cs; cs = s; ce = e; }
+  }
+  return (total + (ce-cs))/1000;
+}
+function depthSec(list, minDepth){          // time with >= minDepth intervals active
+  const pts = [];
+  list.forEach(([s,e]) => { pts.push([s,1]); pts.push([e,-1]); });
+  pts.sort((a,b)=> a[0]-b[0] || a[1]-b[1]);
+  let depth = 0, last = null, total = 0;
+  for (const [t,d] of pts){
+    if (last !== null && depth >= minDepth) total += t - last;
+    depth += d; last = t;
+  }
+  return total/1000;
+}
+function pairSec(at, a, b){
+  const A = intervals(at,a), B = intervals(at,b);
+  let t = 0;
+  for (const [as,ae] of A) for (const [bs,be] of B){
+    const lo = Math.max(as,bs), hi = Math.min(ae,be);
+    if (hi > lo) t += hi - lo;
+  }
+  return t/1000;
+}
+
+/* ---------------------------- rendering ---------------------------- */
+function paintLane(el, v, spanMs, at){
+  el.innerHTML = "";
+  if (!spanMs) return;
+  for (const s of segsOf(v)){
+    const end = s.out ?? at;
+    const d = document.createElement("div");
+    d.className = "seg" + (s.out === null ? " open" : "");
+    d.style.background = HUE[v];
+    d.style.left  = ((s.in - run.startedAt) / spanMs * 100) + "%";
+    d.style.width = Math.max(0.6, (end - s.in) / spanMs * 100) + "%";
+    el.appendChild(d);
+  }
+}
+
+function render(){
+  if (!run) return;
+  const at = run.endedAt ?? now();
+  const mSec = masterSec(at);
+  const live = run.startedAt && !run.endedAt;
+
+  $("d-master").textContent = fmt(mSec);
+  $("d-master").classList.toggle("idle", !run.startedAt);
+
+  for (const v of VARS){
+    const sec = durOf(v, at), open = !!openSeg(v), n = segsOf(v).length;
+    const d = $("d-"+v), b = $("btn-"+v), chip = $("chip-"+v);
+    d.textContent = fmt(sec);
+    d.classList.toggle("idle", sec === 0);
+    if (run.endedAt){
+      b.textContent = "Locked"; b.disabled = true; b.className = "b-quiet";
+    } else {
+      b.disabled = !live;
+      b.textContent = open ? "Stop" : (n ? "Start again" : "Start");
+      b.className = open ? "b-stop" : "b-quiet";
+    }
+    chip.textContent = n === 0 ? "Not yet" : (open ? "Running" : n + (n===1 ? " episode" : " episodes"));
+    chip.classList.toggle("on", open);
+    chip.style.background = open ? HUE[v] : "";
+    $("card-"+v).classList.toggle("live", open);
+  }
+
+  if (run.startedAt){
+    const span = (run.endedAt ?? at) - run.startedAt;
+    $("ribbon").classList.remove("hide");
+    $("scale-now").textContent = run.endedAt ? "Arrive" : "Now — " + fmt(mSec);
+    for (const v of VARS) paintLane($("lane-"+v), v, span, at);
+    const conc = depthSec(intervals(at), 2);
+    $("ribbon-read").textContent = conc > 0
+      ? fmt(conc) + " of this run had two or more delays stacked."
+      : "Stacked bars mean delays overlapped. Nothing overlapping yet.";
+  }
+
+  $("card-master").classList.toggle("live", !!live);
+  $("master-status").textContent = run.endedAt ? "Complete" : (live ? "Tracking" : "Not started");
+  $("hdr-state").textContent = run.endedAt ? "Review" : (live ? "On the floor" : "Ready");
+  $("btn-master").classList.toggle("hide", !!run.startedAt);
+  $("btn-arrive").classList.toggle("hide", !live);
+}
+
+function startTicker(){ stopTicker(); ticker = setInterval(render, 500); }
+function stopTicker(){ if (ticker) clearInterval(ticker); ticker = null; }
+
+/* ---------------------------- actions ---------------------------- */
+let wakeLock = null;
+async function holdScreen(){
+  try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch(e){}
+}
+function releaseScreen(){ try { wakeLock && wakeLock.release(); } catch(e){} wakeLock = null; }
+
+function depart(){
+  run.startedAt = now();
+  save(); holdScreen(); startTicker(); render();
+}
+function toggleVar(v){
+  if (!run.startedAt || run.endedAt) return;
+  const s = openSeg(v);
+  if (s) s.out = now();
+  else run.segs.push({ v, in: now(), out: null });
+  save(); render();
+}
+function arrive(){
+  const t = now();
+  run.endedAt = t;
+  run.segs.forEach(s => { if (s.out === null) s.out = t; });
+  save(); stopTicker(); releaseScreen();
+  render(); showReview();
+}
+
+/* ---------------------------- payload ---------------------------- */
+const COLUMNS = [
+  "run_id","date","depart_time","observer","unit","room_type","mobility",
+  "total_sec","moving_sec","any_delay_sec","concurrent_sec","overlap_sec",
+  "paperwork_sec","paperwork_episodes","meds_sec","meds_episodes","transfer_sec","transfer_episodes",
+  "pair_paperwork_meds_sec","pair_paperwork_transfer_sec","pair_meds_transfer_sec",
+  "delay_count","first_delay","delay_order","clean_run","notes","segments_json","app_version"
+];
+
+function buildRow(){
+  const at = run.endedAt;
+  const total = masterSec(at);
+  const all = intervals(at);
+  const any = unionSec(all);
+  const conc = depthSec(all, 2);
+  const sum = VARS.reduce((t,v) => t + durOf(v,at), 0);
+  const ordered = run.segs.slice().sort((a,b)=>a.in-b.in);
+  const seen = [];
+  ordered.forEach(s => { if (!seen.includes(s.v)) seen.push(s.v); });
+  const d = new Date(run.startedAt);
+  const pad = n => String(n).padStart(2,"0");
+  const r = Math.round;
+
+  return {
+    run_id: run.id,
+    date: `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,
+    depart_time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    observer: cfg.observer || "",
+    unit: run.meta.unit, room_type: run.meta.room, mobility: run.meta.mobility,
+    total_sec: r(total),
+    moving_sec: r(total - any),
+    any_delay_sec: r(any),
+    concurrent_sec: r(conc),
+    overlap_sec: r(sum - any),
+    paperwork_sec: r(durOf("paperwork",at)), paperwork_episodes: segsOf("paperwork").length,
+    meds_sec: r(durOf("meds",at)),           meds_episodes: segsOf("meds").length,
+    transfer_sec: r(durOf("transfer",at)),   transfer_episodes: segsOf("transfer").length,
+    pair_paperwork_meds_sec: r(pairSec(at,"paperwork","meds")),
+    pair_paperwork_transfer_sec: r(pairSec(at,"paperwork","transfer")),
+    pair_meds_transfer_sec: r(pairSec(at,"meds","transfer")),
+    delay_count: run.segs.length,
+    first_delay: seen[0] ? SHORT[seen[0]] : "",
+    delay_order: seen.map(v => SHORT[v]).join(" > "),
+    clean_run: run.segs.length === 0 ? "TRUE" : "FALSE",
+    notes: run.meta.notes,
+    segments_json: JSON.stringify(run.segs.map(s => [s.v[0], r((s.in-run.startedAt)/1000), r((s.out-run.startedAt)/1000)])),
+    app_version: APP_VERSION
+  };
+}
+
+/* ---------------------------- review ---------------------------- */
+function showReview(){
+  const at = run.endedAt;
+  const all = intervals(at);
+  const any = unionSec(all), total = masterSec(at);
+  $("r-total").textContent = fmt(total);
+  $("r-moving").textContent = fmt(total - any);
+  $("r-any").textContent = fmt(any);
+  $("r-conc").textContent = fmt(depthSec(all,2));
+  const map = { paperwork:"pw", meds:"md", transfer:"tr" };
+  for (const v of VARS){
+    $("r-"+map[v]).textContent = fmt(durOf(v,at));
+    const n = segsOf(v).length;
+    $("r-"+map[v]+"-n").textContent = n === 0 ? "did not occur" : n + (n===1?" episode":" episodes");
+  }
+  const ordered = run.segs.slice().sort((a,b)=>a.in-b.in), seen = [];
+  ordered.forEach(s => { if (!seen.includes(s.v)) seen.push(s.v); });
+  $("r-order").textContent = seen.length ? seen.map(v=>SHORT[v]).join(" → ") : "—";
+  $("review-clean").textContent = run.segs.length ? "" : "Clean run";
+  $("r-scale-end").textContent = "Arrive — " + fmt(total);
+  const span = at - run.startedAt;
+  for (const v of VARS) paintLane($("r-lane-"+v), v, span, at);
+
+  $("m-unit").value = run.meta.unit;
+  $("m-room").value = run.meta.room;
+  $("m-mobility").value = run.meta.mobility;
+  $("m-notes").value = run.meta.notes;
+  const units = JSON.parse(store.get(K.UNITS) || "[]");
+  $("unit-history").innerHTML = units.map(u => `<option value="${u.replace(/"/g,"&quot;")}">`).join("");
+
+  $("view-track").classList.add("hide");
+  $("view-review").classList.remove("hide");
+  $("send-state").classList.add("hide");
+  $("btn-send").disabled = false;
+  $("btn-send").textContent = "Send to sheet";
+  window.scrollTo(0,0);
+}
+
+function readMeta(){
+  run.meta.unit = $("m-unit").value.trim();
+  run.meta.room = $("m-room").value;
+  run.meta.mobility = $("m-mobility").value;
+  run.meta.notes = $("m-notes").value.trim();
+  if (run.meta.unit){
+    const units = JSON.parse(store.get(K.UNITS) || "[]");
+    if (!units.includes(run.meta.unit)) store.set(K.UNITS, JSON.stringify([run.meta.unit, ...units].slice(0,12)));
+  }
+  save();
+}
+
+/* ---------------------------- queue + send ---------------------------- */
+const queue = {
+  all(){ return JSON.parse(store.get(K.QUEUE) || "[]"); },
+  add(row){ const q = this.all(); q.push(row); store.set(K.QUEUE, JSON.stringify(q)); this.paint(); },
+  set(q){ store.set(K.QUEUE, JSON.stringify(q)); this.paint(); },
+  paint(){
+    const n = this.all().length;
+    $("banner-queue").classList.toggle("hide", n === 0);
+    $("queue-msg").textContent = n === 1 ? "1 run is waiting to reach the sheet." : n + " runs are waiting to reach the sheet.";
+  }
+};
+
+async function post(rows){
+  if (!cfg.url) throw new Error("No Apps Script URL saved. Open Setup to add it.");
+  const res = await fetch(cfg.url, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },   // keeps it a simple request, no preflight
+    body: JSON.stringify({ columns: COLUMNS, rows })
+  });
+  const text = await res.text();
+  let data; try { data = JSON.parse(text); } catch(e){ throw new Error("Sheet replied with something unexpected. Check the deployment is set to Anyone."); }
+  if (!data.ok) throw new Error(data.error || "The sheet rejected the row.");
+  return data;
+}
+
+async function flush(){
+  const q = queue.all();
+  if (!q.length) return;
+  try { await post(q); queue.set([]); toast("ok", q.length + " queued run(s) reached the sheet."); }
+  catch(e){ toast("warn", e.message); }
+}
+
+function toast(kind, msg){
+  const el = $("send-state");
+  el.className = "banner " + (kind === "ok" ? "ok" : kind === "warn" ? "warn" : "info");
+  el.textContent = msg;
+  el.classList.remove("hide");
+}
+
+async function send(){
+  readMeta();
+  const row = buildRow();
+  $("btn-send").disabled = true;
+  toast("info","Sending…");
+  try {
+    await post([row]);
+    toast("ok","Saved to the sheet. Start the next run when you're ready.");
+    $("btn-send").textContent = "Sent";
+    store.del(K.RUN);
+    await flush();
+  } catch(e){
+    queue.add(row);
+    toast("warn", e.message + " Held on this phone — it will go up next time you send.");
+    $("btn-send").disabled = false;
+    $("btn-send").textContent = "Try again";
+  }
+}
+
+function rowToTSV(row){
+  return COLUMNS.join("\t") + "\n" + COLUMNS.map(c => String(row[c] ?? "")).join("\t");
+}
+async function copyText(txt, label){
+  try { await navigator.clipboard.writeText(txt); toast("ok", label + " copied. Paste into the sheet."); }
+  catch(e){ window.prompt("Copy this:", txt); }
+}
+
+/* ---------------------------- wiring ---------------------------- */
+$("btn-master").addEventListener("click", depart);
+$("btn-arrive").addEventListener("click", arrive);
+VARS.forEach(v => $("btn-"+v).addEventListener("click", () => toggleVar(v)));
+
+$("btn-send").addEventListener("click", send);
+$("btn-flush").addEventListener("click", flush);
+$("btn-copy").addEventListener("click", () => { readMeta(); copyText(rowToTSV(buildRow()), "Row"); });
+$("btn-new").addEventListener("click", () => {
+  if ($("btn-send").textContent !== "Sent" && !confirm("This run hasn't been sent. Start a new one anyway?")) return;
+  store.del(K.RUN);
+  run = newRun();
+  $("view-review").classList.add("hide");
+  $("view-track").classList.remove("hide");
+  ["m-unit","m-notes"].forEach(id => $(id).value = "");
+  render(); $("ribbon").classList.add("hide");
+  window.scrollTo(0,0);
+});
+
+$("btn-settings").addEventListener("click", () => {
+  $("cfg-url").value = cfg.url || "";
+  $("cfg-observer").value = cfg.observer || "";
+  $("view-settings").classList.remove("hide");
+  $("view-track").classList.add("hide");
+  $("view-review").classList.add("hide");
+  $("test-result").textContent = "";
+});
+$("btn-close-settings").addEventListener("click", () => {
+  cfg.url = $("cfg-url").value.trim();
+  cfg.observer = $("cfg-observer").value.trim();
+  store.set(K.CFG, JSON.stringify(cfg));
+  $("view-settings").classList.add("hide");
+  (run && run.endedAt ? $("view-review") : $("view-track")).classList.remove("hide");
+});
+$("btn-test").addEventListener("click", async () => {
+  cfg.url = $("cfg-url").value.trim();
+  store.set(K.CFG, JSON.stringify(cfg));
+  $("test-result").textContent = "Checking…";
+  try { await post([]); $("test-result").textContent = "Connected. The sheet answered."; }
+  catch(e){ $("test-result").textContent = e.message; }
+});
+$("btn-copy-queue").addEventListener("click", () => {
+  const q = queue.all();
+  if (!q.length) { alert("Nothing is waiting."); return; }
+  copyText(COLUMNS.join("\t") + "\n" + q.map(r => COLUMNS.map(c => String(r[c] ?? "")).join("\t")).join("\n"), "Unsent runs");
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden){ render(); if (run && run.startedAt && !run.endedAt) holdScreen(); }
+});
+window.addEventListener("beforeunload", e => {
+  if (run && run.startedAt && !run.endedAt){ e.preventDefault(); e.returnValue = ""; }
+});
+
+/* ---------------------------- boot ---------------------------- */
+(function boot(){
+  $("storage-note").textContent = store.persistent
+    ? "Runs and unsent rows are kept on this phone until they reach the sheet."
+    : "This preview can't save to the phone. Add the file to your home screen or host it so unsent runs survive a refresh.";
+  $("foot-storage").textContent = store.persistent ? "" : "Preview mode — nothing is saved between refreshes";
+  queue.paint();
+
+  const saved = store.get(K.RUN);
+  if (saved){
+    try {
+      const r = JSON.parse(saved);
+      if (r && r.startedAt && !r.endedAt){
+        run = r;
+        $("recover-when").textContent = new Date(r.startedAt).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+        $("banner-recover").classList.remove("hide");
+        startTicker();
+      } else if (r && r.endedAt){
+        run = r; render(); showReview();
+      }
+    } catch(e){}
+  }
+  if (!run) run = newRun();
+  render();
+})();
+
+$("btn-resume").addEventListener("click", () => { $("banner-recover").classList.add("hide"); holdScreen(); render(); });
+$("btn-discard").addEventListener("click", () => {
+  if (!confirm("Discard the recovered run?")) return;
+  stopTicker(); store.del(K.RUN); run = newRun();
+  $("banner-recover").classList.add("hide");
+  $("ribbon").classList.add("hide");
+  render();
+});
+</script>
+</body>
+</html>
