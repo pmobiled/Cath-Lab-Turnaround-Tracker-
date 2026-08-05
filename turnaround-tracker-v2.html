@@ -187,6 +187,7 @@
   <div class="card master" id="card-master">
     <div class="eyebrow"><span>Master timeline</span><span id="master-status">Not started</span></div>
     <div class="digits mono idle" id="d-master">00:00</div>
+    <div class="desc mono" id="master-clock"></div>
     <div class="desc">Door to door — leaving the lab until the patient is back in the room.</div>
     <button class="b-go" id="btn-master">Depart for floor</button>
 
@@ -244,6 +245,7 @@
   <div class="card">
     <div class="eyebrow"><span>Run summary</span><span id="review-clean"></span></div>
     <div class="digits mono" id="r-total">00:00</div>
+    <div class="desc mono" id="r-clock"></div>
     <div class="desc">Total turnaround, door to door.</div>
     <table>
       <tr><td>Moving the patient<span class="note">No delay running</span></td><td class="mono" id="r-moving">—</td></tr>
@@ -349,6 +351,10 @@ function fmt(sec){
   const mm = String(m).padStart(2,"0"), ss = String(s).padStart(2,"0");
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
+function fmtClock(ms){
+  const d = new Date(ms);
+  return String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+}
 function newRun(){
   return {
     id: "R" + now().toString(36) + Math.random().toString(36).slice(2,6),
@@ -426,6 +432,9 @@ function render(){
 
   $("d-master").textContent = fmt(mSec);
   $("d-master").classList.toggle("idle", !run.startedAt);
+  $("master-clock").textContent = !run.startedAt ? "" :
+    run.endedAt ? `Departed ${fmtClock(run.startedAt)} → Arrived ${fmtClock(run.endedAt)}`
+                : `Departed ${fmtClock(run.startedAt)}`;
 
   for (const v of VARS){
     const sec = durOf(v, at), open = !!openSeg(v), n = segsOf(v).length;
@@ -549,6 +558,7 @@ function showReview(){
   const all = intervals(at);
   const any = unionSec(all), total = masterSec(at);
   $("r-total").textContent = fmt(total);
+  $("r-clock").textContent = `Departed ${fmtClock(run.startedAt)} → Arrived ${fmtClock(run.endedAt)}`;
   $("r-moving").textContent = fmt(total - any);
   $("r-any").textContent = fmt(any);
   $("r-conc").textContent = fmt(depthSec(all,2));
