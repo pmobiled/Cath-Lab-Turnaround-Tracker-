@@ -39,14 +39,21 @@
   }
   .mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
 
-  header{display:flex;align-items:baseline;justify-content:space-between;margin:2px 0 14px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 14px}
   header h1{
     font-size:.82rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
     margin:0;color:var(--text);
   }
   header .sub{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-  .linkish{background:none;border:none;color:var(--muted);font-size:.72rem;letter-spacing:.08em;
-    text-transform:uppercase;padding:6px 2px;cursor:pointer;width:auto}
+  .nav-pills{display:flex;gap:6px;flex:0 0 auto}
+  .nav-pill{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:auto;min-height:0;margin-top:0;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:999px;
+    color:var(--text);font-size:.68rem;font-weight:650;letter-spacing:.06em;text-transform:uppercase;
+    padding:9px 15px;text-decoration:none;cursor:pointer;white-space:nowrap;
+  }
+  .nav-pill:active{background:var(--line)}
 
   .card{
     background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
@@ -129,9 +136,9 @@
     <h1>Turnaround Tracker</h1>
     <div class="sub" id="hdr-state">Ready</div>
   </div>
-  <div style="display:flex;gap:4px">
-    <a class="linkish" id="link-analysis" href="analysis.html" style="width:auto">Analysis</a>
-    <button class="linkish" id="btn-settings" style="width:auto">Setup</button>
+  <div class="nav-pills">
+    <a class="nav-pill" id="link-analysis" href="analysis.html">Analysis</a>
+    <button class="nav-pill" id="btn-settings">Setup</button>
   </div>
 </header>
 
