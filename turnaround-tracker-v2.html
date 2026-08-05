@@ -320,9 +320,9 @@ const APP_VERSION = "2.2";
 // Shared write destination for every user of this app. Fixed here so no one
 // can redirect their data to a different sheet; not user-configurable.
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbxwAKDoF5DOISDUdyT_2clYZVko7ITkXpzf1yLpJyorfIzer4A8PsabyTZW6nScq0pDLQ/exec";
-// Shared, read-only Looker Studio report over the Runs sheet. Same link for
-// everyone — set once here after publishing the report, not user-configurable.
-const REPORT_URL = "https://datastudio.google.com/reporting/6d285331-730d-4727-b6ad-b7e324596a77";
+// Self-hosted, read-only analysis dashboard (analysis.html), same repo.
+// Same link for everyone, not user-configurable.
+const REPORT_URL = "analysis.html";
 
 let cfg = JSON.parse(store.get(K.CFG) || "{}");
 let run = null;

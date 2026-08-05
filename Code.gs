@@ -61,8 +61,43 @@ function doPost(e) {
   }
 }
 
-function doGet() {
-  return json_({ ok: true, message: 'Turnaround Tracker receiver is live. Post runs here.' });
+// Serves every row in Runs as JSON for the analysis dashboard (analysis.html).
+// Supports JSONP via ?callback=name so the dashboard can fetch cross-origin
+// from GitHub Pages without hitting CORS.
+function doGet(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  var columns = [], rows = [];
+  if (sheet && sheet.getLastRow() > 1) {
+    var values = sheet.getDataRange().getValues();
+    columns = values[0];
+    rows = values.slice(1).map(function (r) {
+      var obj = {};
+      columns.forEach(function (col, i) { obj[col] = normalizeValue_(col, r[i]); });
+      return obj;
+    });
+  }
+  var payload = { ok: true, columns: columns, rows: rows };
+  var callback = e && e.parameter && e.parameter.callback;
+  if (callback) {
+    return ContentService
+      .createTextOutput(callback + '(' + JSON.stringify(payload) + ')')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return json_(payload);
+}
+
+// Sheets auto-converts well-formatted text ("TRUE", date-like strings) into
+// native booleans/dates on write, so reads need to normalize back to the
+// plain strings/numbers buildRow() originally sent.
+function normalizeValue_(col, val) {
+  if (val instanceof Date) {
+    var tz = Session.getScriptTimeZone();
+    if (col === 'date') return Utilities.formatDate(val, tz, 'yyyy-MM-dd');
+    if (col === 'depart_time') return Utilities.formatDate(val, tz, 'HH:mm');
+    return val.toISOString();
+  }
+  if (typeof val === 'boolean') return val ? 'TRUE' : 'FALSE';
+  return val;
 }
 
 function getSheet_(columns) {

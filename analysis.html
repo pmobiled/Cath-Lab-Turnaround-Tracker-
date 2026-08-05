@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0E1116">
+<title>Cath Lab Turnaround Analysis</title>
+<style>
+  :root{
+    --ink:#0E1116;
+    --panel:#171C24;
+    --panel-2:#1F2630;
+    --line:#2B3441;
+    --text:#E8EDF2;
+    --muted:#8A97A6;
+    --wine:#A32A63;
+    --good:#0ca30c;
+    --serious:#ec835a;
+    --s1:#3987e5;   /* paperwork */
+    --s2:#d95926;   /* meds */
+    --s3:#199e70;   /* transfer */
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:16px;
+    line-height:1.4;
+    padding:16px 16px 40px;
+    max-width:820px;
+    margin:0 auto;
+  }
+  .mono{font-variant-numeric:tabular-nums}
+  header{margin:2px 0 18px}
+  header h1{font-size:1.3rem;font-weight:700;margin:0 0 4px}
+  header .sub{font-size:.82rem;color:var(--muted)}
+
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+    padding:16px;margin-bottom:14px;
+  }
+  .card h2{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 12px;font-weight:650}
+  .card .note{font-size:.78rem;color:var(--muted);margin-top:10px}
+
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+  .kpi .label{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .kpi .value{font-size:1.9rem;font-weight:650;margin-top:6px}
+  .kpi .value.mono{font-variant-numeric:tabular-nums}
+  .kpi .sub{font-size:.72rem;color:var(--muted);margin-top:4px}
+
+  .cmp-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .cmp{border-radius:10px;padding:14px;border:1px solid var(--line)}
+  .cmp.clean{background:rgba(12,163,12,.08);border-color:rgba(12,163,12,.35)}
+  .cmp.delayed{background:rgba(236,131,90,.08);border-color:rgba(236,131,90,.35)}
+  .cmp .tag{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .cmp .n{font-size:.72rem;color:var(--muted);margin-top:2px}
+  .cmp .val{font-size:1.6rem;font-weight:650;margin-top:8px}
+
+  .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .bar-row:last-child{margin-bottom:0}
+  .bar-label{width:132px;flex:0 0 auto;font-size:.82rem;display:flex;align-items:center;gap:7px}
+  .bar-key{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+  .bar-track{flex:1;height:22px;background:var(--panel-2);border-radius:6px;position:relative;overflow:hidden}
+  .bar-fill{height:100%;border-radius:6px;min-width:3px}
+  .bar-val{width:64px;flex:0 0 auto;text-align:right;font-size:.82rem;font-variant-numeric:tabular-nums}
+
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{text-align:left;font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+     font-weight:600;padding:0 0 8px;border-bottom:1px solid var(--line)}
+  td{padding:9px 0;border-bottom:1px solid var(--line);vertical-align:baseline}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr:last-child td{border-bottom:none}
+
+  svg text{fill:var(--muted);font-size:10px;font-family:inherit}
+  .trend-line{fill:none;stroke:var(--s1);stroke-width:2}
+  .trend-dot{fill:var(--s1)}
+  .trend-grid{stroke:var(--line);stroke-width:1}
+
+  .banner{border-radius:10px;padding:14px;font-size:.88rem;margin-bottom:14px;border:1px solid}
+  .banner.info{background:#15202B;border-color:#2C4356;color:#BBD4E6}
+  .banner.warn{background:#2A1712;border-color:#5A2A20;color:#F0C0B6}
+  .hide{display:none !important}
+  .foot{font-size:.72rem;color:var(--muted);text-align:center;margin-top:18px;line-height:1.6}
+  .foot button{background:none;border:1px solid var(--line);color:var(--muted);border-radius:8px;
+    padding:8px 14px;font-size:.78rem;cursor:pointer;margin-top:8px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Cath Lab Turnaround Analysis</h1>
+  <div class="sub">Read-only · compiled from every logged pickup · no patient identifiers</div>
+</header>
+
+<div id="banner-loading" class="banner info">Loading data…</div>
+<div id="banner-error" class="banner warn hide"></div>
+<div id="banner-empty" class="banner info hide">No runs recorded yet. Numbers will appear here as soon as the first pickup is sent from the tracker app.</div>
+
+<div id="report" class="hide">
+
+  <div class="card">
+    <h2>Headline averages</h2>
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="label">Runs recorded</div>
+        <div class="value mono" id="kpi-n">—</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Avg. total turnaround</div>
+        <div class="value mono" id="kpi-total">—</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Avg. time lost to delays</div>
+        <div class="value mono" id="kpi-delay">—</div>
+      </div>
+      <div class="kpi">
+        <div class="label">Avg. clean-run time</div>
+        <div class="value mono" id="kpi-clean">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Clean runs vs. delayed runs</h2>
+    <div class="cmp-row">
+      <div class="cmp clean">
+        <div class="tag">Clean</div>
+        <div class="n" id="cmp-clean-n"></div>
+        <div class="val mono" id="cmp-clean-val">—</div>
+      </div>
+      <div class="cmp delayed">
+        <div class="tag">Delayed</div>
+        <div class="n" id="cmp-delayed-n"></div>
+        <div class="val mono" id="cmp-delayed-val">—</div>
+      </div>
+    </div>
+    <div class="note">Average door-to-door time for runs with zero delays vs. runs where at least one delay fired.</div>
+  </div>
+
+  <div class="card">
+    <h2>How often each delay fires</h2>
+    <div id="chart-frequency"></div>
+  </div>
+
+  <div class="card">
+    <h2>Average cost when it fires</h2>
+    <div id="chart-cost"></div>
+    <div class="note">Average time added by that delay, counted only on runs where it actually occurred.</div>
+  </div>
+
+  <div class="card">
+    <h2>Compounding: total time by number of delays</h2>
+    <div id="chart-compound"></div>
+    <div class="note">The core claim of this app — whether stacked delays cost more than the sum of their parts.</div>
+  </div>
+
+  <div class="card">
+    <h2>Pairwise overlap</h2>
+    <table>
+      <thead><tr><th>Pair</th><th class="num">Co-occurred</th><th class="num">Avg. overlap</th></tr></thead>
+      <tbody id="tbl-pairs"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>By unit</h2>
+    <table>
+      <thead><tr><th>Unit</th><th class="num">Runs</th><th class="num">Avg. total</th><th class="num">Avg. delay</th></tr></thead>
+      <tbody id="tbl-unit"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>By room type</h2>
+    <table>
+      <thead><tr><th>Room type</th><th class="num">Runs</th><th class="num">Avg. total</th><th class="num">Avg. delay</th></tr></thead>
+      <tbody id="tbl-room"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>By mobility</h2>
+    <table>
+      <thead><tr><th>Mobility</th><th class="num">Runs</th><th class="num">Avg. total</th><th class="num">Avg. delay</th></tr></thead>
+      <tbody id="tbl-mobility"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Trend over time</h2>
+    <div id="chart-trend"></div>
+  </div>
+
+</div>
+
+<div class="foot">
+  <div id="foot-updated"></div>
+  <button id="btn-refresh">Refresh data</button>
+</div>
+
+<script>
+"use strict";
+
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbxwAKDoF5DOISDUdyT_2clYZVko7ITkXpzf1yLpJyorfIzer4A8PsabyTZW6nScq0pDLQ/exec";
+const VARS = [
+  { key:"paperwork", label:"Consent & paperwork", color:"var(--s1)" },
+  { key:"meds",       label:"Pre-op meds & prep",  color:"var(--s2)" },
+  { key:"transfer",   label:"Physical transfer & IVs", color:"var(--s3)" }
+];
+const PAIRS = [
+  { label:"Paperwork + Meds",     col:"pair_paperwork_meds_sec" },
+  { label:"Paperwork + Transfer", col:"pair_paperwork_transfer_sec" },
+  { label:"Meds + Transfer",      col:"pair_meds_transfer_sec" }
+];
+
+const $ = id => document.getElementById(id);
+
+function fmt(sec){
+  if (sec === null || sec === undefined || isNaN(sec)) return "—";
+  sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  const mm = String(m).padStart(2,"0"), ss = String(s).padStart(2,"0");
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+function pct(n){ return isNaN(n) ? "—" : Math.round(n*100) + "%"; }
+function num(v){ const n = Number(v); return isNaN(n) ? 0 : n; }
+function isTrue(v){ return v === true || v === "TRUE" || v === "true"; }
+
+/* ---------------------------- fetch (JSONP) ---------------------------- */
+function fetchData(){
+  return new Promise((resolve, reject) => {
+    const cbName = "clt_cb_" + Date.now();
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error("Timed out waiting for the sheet. Check the Apps Script is deployed and reachable."));
+    }, 15000);
+    function cleanup(){
+      clearTimeout(timeout);
+      delete window[cbName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = (payload) => { cleanup(); resolve(payload); };
+    const script = document.createElement("script");
+    script.src = SHEET_URL + (SHEET_URL.includes("?") ? "&" : "?") + "callback=" + cbName;
+    script.onerror = () => { cleanup(); reject(new Error("Could not reach the sheet. Check the deployment and your connection.")); };
+    document.body.appendChild(script);
+  });
+}
+
+/* ---------------------------- stats ---------------------------- */
+function computeStats(rows){
+  const n = rows.length;
+  const clean = rows.filter(r => isTrue(r.clean_run));
+  const delayed = rows.filter(r => !isTrue(r.clean_run));
+  const avg = (arr, key) => arr.length ? arr.reduce((s,r)=>s+num(r[key]),0)/arr.length : null;
+
+  const perVar = VARS.map(v => {
+    const fired = rows.filter(r => num(r[v.key+"_episodes"]) > 0);
+    return { ...v, firedCount: fired.length, firedPct: n ? fired.length/n : 0, avgWhenFired: avg(fired, v.key+"_sec") };
+  });
+
+  const byDelayCount = {};
+  rows.forEach(r => {
+    const dc = num(r.delay_count);
+    (byDelayCount[dc] = byDelayCount[dc] || []).push(r);
+  });
+  const compound = Object.keys(byDelayCount).map(Number).sort((a,b)=>a-b).map(dc => ({
+    delayCount: dc, n: byDelayCount[dc].length, avgTotal: avg(byDelayCount[dc], "total_sec")
+  }));
+
+  const pairs = PAIRS.map(p => {
+    const co = rows.filter(r => num(r[p.col]) > 0);
+    return { ...p, count: co.length, avgSec: avg(co, p.col) };
+  });
+
+  function byDim(key){
+    const groups = {};
+    rows.forEach(r => { const g = r[key] || "(blank)"; (groups[g] = groups[g] || []).push(r); });
+    return Object.keys(groups).map(g => ({
+      label:g, n:groups[g].length, avgTotal:avg(groups[g],"total_sec"), avgDelay:avg(groups[g],"any_delay_sec")
+    })).sort((a,b)=>b.n-a.n);
+  }
+
+  const byDate = {};
+  rows.forEach(r => { (byDate[r.date] = byDate[r.date] || []).push(r); });
+  const trend = Object.keys(byDate).filter(Boolean).sort().map(d => ({
+    date:d, avgTotal:avg(byDate[d],"total_sec"), n:byDate[d].length
+  }));
+
+  return {
+    n, cleanCount: clean.length, delayedCount: delayed.length,
+    avgTotal: avg(rows,"total_sec"), avgAnyDelay: avg(rows,"any_delay_sec"),
+    avgCleanTotal: avg(clean,"total_sec"), avgDelayedTotal: avg(delayed,"total_sec"),
+    perVar, compound, pairs,
+    byUnit: byDim("unit"), byRoom: byDim("room_type"), byMobility: byDim("mobility"),
+    trend
+  };
+}
+
+/* ---------------------------- render helpers ---------------------------- */
+function barChart(container, items, opts){
+  opts = opts || {};
+  const max = Math.max(1, ...items.map(i => i.value || 0));
+  container.innerHTML = "";
+  items.forEach(item => {
+    const row = document.createElement("div"); row.className = "bar-row";
+    const label = document.createElement("div"); label.className = "bar-label";
+    if (item.color){
+      const key = document.createElement("span"); key.className = "bar-key"; key.style.background = item.color;
+      label.appendChild(key);
+    }
+    label.appendChild(document.createTextNode(item.label));
+    const track = document.createElement("div"); track.className = "bar-track";
+    const fill = document.createElement("div"); fill.className = "bar-fill";
+    fill.style.width = Math.max(2, (item.value||0)/max*100) + "%";
+    fill.style.background = item.color || "var(--s1)";
+    track.appendChild(fill);
+    const val = document.createElement("div"); val.className = "bar-val mono";
+    val.textContent = opts.formatter ? opts.formatter(item) : item.value;
+    row.appendChild(label); row.appendChild(track); row.appendChild(val);
+    container.appendChild(row);
+  });
+  if (!items.length) container.innerHTML = '<div class="note">Not enough data yet.</div>';
+}
+
+function lineChart(container, points){
+  if (points.length < 2){
+    container.innerHTML = '<div class="note">Need at least 2 days of data to show a trend.</div>';
+    return;
+  }
+  const w = 720, h = 200, pad = 32;
+  const xs = points.map((_,i)=>i);
+  const ys = points.map(p => p.avgTotal || 0);
+  const maxY = Math.max(1, ...ys);
+  const x = i => pad + (i/(points.length-1)) * (w - pad*2);
+  const y = v => h - pad - (v/maxY) * (h - pad*2);
+  let path = points.map((p,i) => (i===0?"M":"L") + x(i).toFixed(1) + "," + y(ys[i]).toFixed(1)).join(" ");
+  let gridlines = "";
+  for (let g=0; g<=4; g++){
+    const gy = pad + g*(h-pad*2)/4;
+    gridlines += `<line class="trend-grid" x1="${pad}" y1="${gy.toFixed(1)}" x2="${w-pad}" y2="${gy.toFixed(1)}"/>`;
+  }
+  let dots = points.map((p,i) => `<circle class="trend-dot" cx="${x(i).toFixed(1)}" cy="${y(ys[i]).toFixed(1)}" r="3"><title>${p.date}: ${fmt(p.avgTotal)} (n=${p.n})</title></circle>`).join("");
+  const firstLabel = points[0].date, lastLabel = points[points.length-1].date;
+  container.innerHTML = `
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto">
+      ${gridlines}
+      <path class="trend-line" d="${path}"/>
+      ${dots}
+      <text x="${pad}" y="${h-8}">${firstLabel}</text>
+      <text x="${w-pad}" y="${h-8}" text-anchor="end">${lastLabel}</text>
+      <text x="${pad}" y="14">${fmt(maxY)}</text>
+    </svg>`;
+}
+
+function renderTable(tbody, rows, formatRow, colspan){
+  tbody.innerHTML = rows.length ? rows.map(formatRow).join("") : `<tr><td colspan="${colspan||4}" class="note">No data yet.</td></tr>`;
+}
+
+/* ---------------------------- main render ---------------------------- */
+function render(stats){
+  $("kpi-n").textContent = stats.n;
+  $("kpi-total").textContent = fmt(stats.avgTotal);
+  $("kpi-delay").textContent = fmt(stats.avgAnyDelay);
+  $("kpi-clean").textContent = fmt(stats.avgCleanTotal);
+
+  $("cmp-clean-n").textContent = stats.cleanCount + (stats.cleanCount===1?" run":" runs");
+  $("cmp-clean-val").textContent = fmt(stats.avgCleanTotal);
+  $("cmp-delayed-n").textContent = stats.delayedCount + (stats.delayedCount===1?" run":" runs");
+  $("cmp-delayed-val").textContent = fmt(stats.avgDelayedTotal);
+
+  barChart($("chart-frequency"), stats.perVar.map(v => ({
+    label:v.label, color:v.color, value:v.firedCount, pct:v.firedPct
+  })), { formatter: item => item.value + " (" + pct(item.pct) + ")" });
+
+  barChart($("chart-cost"), stats.perVar.filter(v=>v.avgWhenFired!==null).map(v => ({
+    label:v.label, color:v.color, value:v.avgWhenFired
+  })), { formatter: item => fmt(item.value) });
+
+  barChart($("chart-compound"), stats.compound.map(c => ({
+    label: c.delayCount===0 ? "0 delays (clean)" : c.delayCount + (c.delayCount===1?" delay":" delays"),
+    value: c.avgTotal, n: c.n, color:"var(--s1)"
+  })), { formatter: item => fmt(item.value) + " (n=" + item.n + ")" });
+
+  renderTable($("tbl-pairs"), stats.pairs, p => `<tr>
+    <td>${p.label}</td>
+    <td class="num">${p.count}</td>
+    <td class="num">${p.avgSec===null ? "—" : fmt(p.avgSec)}</td>
+  </tr>`, 3);
+
+  const dimRow = r => `<tr>
+    <td>${r.label}</td><td class="num">${r.n}</td>
+    <td class="num">${fmt(r.avgTotal)}</td><td class="num">${fmt(r.avgDelay)}</td>
+  </tr>`;
+  renderTable($("tbl-unit"), stats.byUnit, dimRow);
+  renderTable($("tbl-room"), stats.byRoom, dimRow);
+  renderTable($("tbl-mobility"), stats.byMobility, dimRow);
+
+  lineChart($("chart-trend"), stats.trend);
+}
+
+/* ---------------------------- boot ---------------------------- */
+async function load(){
+  $("banner-loading").classList.remove("hide");
+  $("banner-error").classList.add("hide");
+  $("banner-empty").classList.add("hide");
+  $("report").classList.add("hide");
+  try {
+    const payload = await fetchData();
+    if (!payload.ok) throw new Error(payload.error || "The sheet rejected the request.");
+    $("banner-loading").classList.add("hide");
+    if (!payload.rows.length){
+      $("banner-empty").classList.remove("hide");
+      return;
+    }
+    render(computeStats(payload.rows));
+    $("report").classList.remove("hide");
+    $("foot-updated").textContent = "Updated " + new Date().toLocaleString([], {dateStyle:"medium", timeStyle:"short"}) + " · " + payload.rows.length + " runs";
+  } catch (e) {
+    $("banner-loading").classList.add("hide");
+    $("banner-error").textContent = e.message;
+    $("banner-error").classList.remove("hide");
+  }
+}
+$("btn-refresh").addEventListener("click", load);
+load();
+</script>
+</body>
+</html>
