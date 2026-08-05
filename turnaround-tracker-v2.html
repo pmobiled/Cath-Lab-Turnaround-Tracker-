@@ -129,7 +129,10 @@
     <h1>Turnaround Tracker</h1>
     <div class="sub" id="hdr-state">Ready</div>
   </div>
-  <button class="linkish" id="btn-settings" style="width:auto">Setup</button>
+  <div style="display:flex;gap:4px">
+    <a class="linkish" id="link-analysis" href="analysis.html" style="width:auto">Analysis</a>
+    <button class="linkish" id="btn-settings" style="width:auto">Setup</button>
+  </div>
 </header>
 
 <div id="banner-recover" class="banner warn hide">
@@ -163,11 +166,6 @@
     <div class="eyebrow">Local data</div>
     <div class="desc" id="storage-note"></div>
     <button class="b-quiet" id="btn-copy-queue">Copy unsent runs as text</button>
-  </div>
-  <div class="card" id="card-report">
-    <div class="eyebrow">Team analysis</div>
-    <div class="desc">Live compiled view of everyone's pickups — clean vs. delayed runs, which delays cost the most, and how they overlap. Read-only.</div>
-    <button class="b-quiet" id="btn-open-report">Open analysis dashboard</button>
   </div>
 </section>
 
@@ -695,11 +693,6 @@ $("btn-copy-queue").addEventListener("click", () => {
   if (!q.length) { alert("Nothing is waiting."); return; }
   copyText(COLUMNS.join("\t") + "\n" + q.map(r => COLUMNS.map(c => String(r[c] ?? "")).join("\t")).join("\n"), "Unsent runs");
 });
-$("btn-open-report").addEventListener("click", () => {
-  if (!REPORT_URL) { alert("The analysis dashboard isn't published yet — check back soon."); return; }
-  window.open(REPORT_URL, "_blank", "noopener");
-});
-
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden){ render(); if (run && run.startedAt && !run.endedAt) holdScreen(); }
 });
@@ -709,6 +702,7 @@ window.addEventListener("beforeunload", e => {
 
 /* ---------------------------- boot ---------------------------- */
 (function boot(){
+  if (REPORT_URL) $("link-analysis").href = REPORT_URL;
   $("storage-note").textContent = store.persistent
     ? "Runs and unsent rows are kept on this phone until they reach the sheet."
     : "This preview can't save to the phone. Add the file to your home screen or host it so unsent runs survive a refresh.";
