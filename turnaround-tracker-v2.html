@@ -164,6 +164,11 @@
     <div class="desc" id="storage-note"></div>
     <button class="b-quiet" id="btn-copy-queue">Copy unsent runs as text</button>
   </div>
+  <div class="card" id="card-report">
+    <div class="eyebrow">Team analysis</div>
+    <div class="desc">Live compiled view of everyone's pickups — clean vs. delayed runs, which delays cost the most, and how they overlap. Read-only.</div>
+    <button class="b-quiet" id="btn-open-report">Open analysis dashboard</button>
+  </div>
 </section>
 
 <!-- ============ TRACKING ============ -->
@@ -312,6 +317,9 @@ const LABEL = { paperwork:"Consent & paperwork", meds:"Pre-op meds & prep", tran
 const SHORT = { paperwork:"Paperwork", meds:"Meds/prep", transfer:"Transfer/IV" };
 const HUE   = { paperwork:"var(--paperwork)", meds:"var(--meds)", transfer:"var(--transfer)" };
 const APP_VERSION = "2.1";
+// Shared, read-only Looker Studio report over the Runs sheet. Same link for
+// everyone — set once here after publishing the report, not user-configurable.
+const REPORT_URL = "";
 
 let cfg = JSON.parse(store.get(K.CFG) || "{}");
 let run = null;
@@ -688,6 +696,10 @@ $("btn-copy-queue").addEventListener("click", () => {
   const q = queue.all();
   if (!q.length) { alert("Nothing is waiting."); return; }
   copyText(COLUMNS.join("\t") + "\n" + q.map(r => COLUMNS.map(c => String(r[c] ?? "")).join("\t")).join("\n"), "Unsent runs");
+});
+$("btn-open-report").addEventListener("click", () => {
+  if (!REPORT_URL) { alert("The analysis dashboard isn't published yet — check back soon."); return; }
+  window.open(REPORT_URL, "_blank", "noopener");
 });
 
 document.addEventListener("visibilitychange", () => {
