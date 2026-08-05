@@ -54,6 +54,10 @@
     padding:9px 15px;text-decoration:none;cursor:pointer;white-space:nowrap;
   }
   .nav-pill:active{background:var(--line)}
+  .pill-insights{background:linear-gradient(135deg,#2a78d6,#3987e5);border-color:transparent;color:#fff}
+  .pill-insights:active{background:#2660b0}
+  .pill-setup{background:linear-gradient(135deg,#7A2350,var(--wine));border-color:transparent;color:#fff}
+  .pill-setup:active{background:#7A2350}
 
   .card{
     background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
@@ -137,8 +141,8 @@
     <div class="sub" id="hdr-state">Ready</div>
   </div>
   <div class="nav-pills">
-    <a class="nav-pill" id="link-analysis" href="analysis.html">Analysis</a>
-    <button class="nav-pill" id="btn-settings">Setup</button>
+    <a class="nav-pill pill-insights" id="link-analysis" href="analysis.html">Insights</a>
+    <button class="nav-pill pill-setup" id="btn-settings">Setup</button>
   </div>
 </header>
 
