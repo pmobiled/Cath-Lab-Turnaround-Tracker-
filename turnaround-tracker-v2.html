@@ -149,9 +149,9 @@
 <section id="view-settings" class="hide">
   <div class="card">
     <div class="eyebrow">Google Sheets connection</div>
-    <label for="cfg-url">Apps Script web app URL</label>
-    <input id="cfg-url" type="url" inputmode="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
-    <div class="desc">Paste the URL from Deploy → New deployment → Web app. Runs are saved on this phone until they reach the sheet, so a dead zone on the floor never costs you a data point.</div>
+    <label>Destination</label>
+    <div class="desc" style="margin-top:0"><strong style="color:var(--good)">● Connected</strong> — shared team sheet (fixed, cannot be changed)</div>
+    <div class="desc">Runs are saved on this phone until they reach the sheet, so a dead zone on the floor never costs you a data point.</div>
     <label for="cfg-observer">Your initials (optional)</label>
     <input id="cfg-observer" maxlength="4" placeholder="e.g. RN1" autocomplete="off">
     <div class="desc">Logged with each run so you can check whether results differ by who is timing.</div>
@@ -290,7 +290,7 @@
   </div>
 </section>
 
-<div class="foot">v2.1 · timing survives screen lock<br><span id="foot-storage"></span></div>
+<div class="foot">v2.2 · timing survives screen lock<br><span id="foot-storage"></span></div>
 
 <script>
 "use strict";
@@ -316,7 +316,10 @@ const VARS = ["paperwork","meds","transfer"];
 const LABEL = { paperwork:"Consent & paperwork", meds:"Pre-op meds & prep", transfer:"Physical transfer & IVs" };
 const SHORT = { paperwork:"Paperwork", meds:"Meds/prep", transfer:"Transfer/IV" };
 const HUE   = { paperwork:"var(--paperwork)", meds:"var(--meds)", transfer:"var(--transfer)" };
-const APP_VERSION = "2.1";
+const APP_VERSION = "2.2";
+// Shared write destination for every user of this app. Fixed here so no one
+// can redirect their data to a different sheet; not user-configurable.
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbxwAKDoF5DOISDUdyT_2clYZVko7ITkXpzf1yLpJyorfIzer4A8PsabyTZW6nScq0pDLQ/exec";
 // Shared, read-only Looker Studio report over the Runs sheet. Same link for
 // everyone — set once here after publishing the report, not user-configurable.
 const REPORT_URL = "https://datastudio.google.com/reporting/6d285331-730d-4727-b6ad-b7e324596a77";
@@ -591,8 +594,7 @@ const queue = {
 };
 
 async function post(rows){
-  if (!cfg.url) throw new Error("No Apps Script URL saved. Open Setup to add it.");
-  const res = await fetch(cfg.url, {
+  const res = await fetch(SHEET_URL, {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },   // keeps it a simple request, no preflight
     body: JSON.stringify({ columns: COLUMNS, rows })
@@ -671,7 +673,6 @@ $("btn-new").addEventListener("click", () => {
 });
 
 $("btn-settings").addEventListener("click", () => {
-  $("cfg-url").value = cfg.url || "";
   $("cfg-observer").value = cfg.observer || "";
   $("view-settings").classList.remove("hide");
   $("view-track").classList.add("hide");
@@ -679,15 +680,12 @@ $("btn-settings").addEventListener("click", () => {
   $("test-result").textContent = "";
 });
 $("btn-close-settings").addEventListener("click", () => {
-  cfg.url = $("cfg-url").value.trim();
   cfg.observer = $("cfg-observer").value.trim();
   store.set(K.CFG, JSON.stringify(cfg));
   $("view-settings").classList.add("hide");
   (run && run.endedAt ? $("view-review") : $("view-track")).classList.remove("hide");
 });
 $("btn-test").addEventListener("click", async () => {
-  cfg.url = $("cfg-url").value.trim();
-  store.set(K.CFG, JSON.stringify(cfg));
   $("test-result").textContent = "Checking…";
   try { await post([]); $("test-result").textContent = "Connected. The sheet answered."; }
   catch(e){ $("test-result").textContent = e.message; }
