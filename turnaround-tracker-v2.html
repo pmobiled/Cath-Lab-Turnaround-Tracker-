@@ -89,6 +89,7 @@
   .b-live{background:var(--wine);color:#fff}
   .b-stop{background:var(--warn);color:#2A0A07}
   .b-quiet{background:var(--panel-2);color:var(--text);border:1px solid var(--line);min-height:48px;font-size:.9rem}
+  .b-cancel{background:var(--panel-2);color:var(--warn);border:1px solid rgba(224,90,78,.4);min-height:44px;font-size:.85rem}
   .b-arrive{background:var(--text);color:#0E1116;min-height:64px;font-size:1.05rem}
   .row2{display:flex;gap:10px}
   .row2>button{flex:1}
@@ -235,6 +236,7 @@
   </div>
 
   <button class="b-arrive hide" id="btn-arrive">Arrive in cath lab — stop all</button>
+  <button class="b-cancel hide" id="btn-cancel-run" style="margin-top:8px">Cancel this run — start over</button>
 </section>
 
 <!-- ============ REVIEW / EXPORT ============ -->
@@ -459,6 +461,7 @@ function render(){
   $("hdr-state").textContent = run.endedAt ? "Review" : (live ? "On the floor" : "Ready");
   $("btn-master").classList.toggle("hide", !!run.startedAt);
   $("btn-arrive").classList.toggle("hide", !live);
+  $("btn-cancel-run").classList.toggle("hide", !live);
 }
 
 function startTicker(){ stopTicker(); ticker = setInterval(render, 500); }
@@ -659,6 +662,17 @@ async function copyText(txt, label){
 $("btn-master").addEventListener("click", depart);
 $("btn-arrive").addEventListener("click", arrive);
 VARS.forEach(v => $("btn-"+v).addEventListener("click", () => toggleVar(v)));
+
+$("btn-cancel-run").addEventListener("click", () => {
+  if (!confirm("Cancel this run and start over? Everything timed so far will be discarded.")) return;
+  stopTicker(); releaseScreen(); store.del(K.RUN);
+  run = newRun();
+  $("t-notes").value = "";
+  $("chip-notes").textContent = "Empty";
+  $("ribbon").classList.add("hide");
+  render();
+  window.scrollTo(0,0);
+});
 
 $("t-notes").addEventListener("input", () => {
   run.meta.notes = $("t-notes").value;
