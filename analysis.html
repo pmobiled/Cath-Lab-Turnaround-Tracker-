@@ -34,9 +34,13 @@
     margin:0 auto;
   }
   .mono{font-variant-numeric:tabular-nums}
-  header{margin:2px 0 18px}
+  header{margin:2px 0 18px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
   header h1{font-size:1.3rem;font-weight:700;margin:0 0 4px}
   header .sub{font-size:.82rem;color:var(--muted)}
+  .back-link{flex:0 0 auto;font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:8px;
+    padding:8px 12px;white-space:nowrap}
+  .back-link:active{background:var(--panel-2)}
 
   .card{
     background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
@@ -92,8 +96,11 @@
 <body>
 
 <header>
-  <h1>Cath Lab Turnaround Analysis</h1>
-  <div class="sub">Read-only · compiled from every logged pickup · no patient identifiers</div>
+  <div>
+    <h1>Cath Lab Turnaround Analysis</h1>
+    <div class="sub">Read-only · compiled from every logged pickup · no patient identifiers</div>
+  </div>
+  <a class="back-link" href="turnaround-tracker-v2.html">← Tracker</a>
 </header>
 
 <div id="banner-loading" class="banner info">Loading data…</div>
