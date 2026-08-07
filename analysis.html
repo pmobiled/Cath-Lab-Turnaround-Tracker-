@@ -84,6 +84,29 @@
   .trend-dot{fill:var(--s1)}
   .trend-grid{stroke:var(--line);stroke-width:1}
 
+  .srcfilter{display:flex;gap:8px;margin-bottom:14px}
+  .srcfilter button{
+    flex:1;background:var(--panel);border:1px solid var(--line);border-radius:999px;
+    color:var(--muted);font-size:.76rem;font-weight:650;letter-spacing:.04em;text-transform:uppercase;
+    padding:11px 8px;cursor:pointer;font-family:inherit;
+  }
+  .srcfilter button.on{background:var(--s1);border-color:transparent;color:#fff}
+
+  .split-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .split-row:last-child{margin-bottom:0}
+  .split-label{width:96px;flex:0 0 auto;font-size:.85rem;font-weight:600}
+  .split-label .n{display:block;font-size:.7rem;color:var(--muted);font-weight:400}
+  .split-track{flex:1;height:26px;background:var(--panel-2);border-radius:6px;overflow:hidden}
+  .split-fill{height:100%;border-radius:6px;min-width:3px}
+  .split-val{width:70px;flex:0 0 auto;text-align:right;font-size:.9rem;font-weight:650;font-variant-numeric:tabular-nums}
+
+  .bar-delta{display:block;font-size:.68rem;color:var(--serious);font-weight:600}
+
+  .callout{display:flex;align-items:center;gap:14px;margin-top:14px;padding:14px;
+    background:rgba(236,131,90,.08);border:1px solid rgba(236,131,90,.35);border-radius:10px}
+  .callout-big{font-size:2.1rem;font-weight:700;color:var(--serious);line-height:1;flex:0 0 auto}
+  .callout-text{font-size:.85rem;line-height:1.45}
+
   .banner{border-radius:10px;padding:14px;font-size:.88rem;margin-bottom:14px;border:1px solid}
   .banner.info{background:#15202B;border-color:#2C4356;color:#BBD4E6}
   .banner.warn{background:#2A1712;border-color:#5A2A20;color:#F0C0B6}
@@ -108,6 +131,17 @@
 <div id="banner-empty" class="banner info hide">No runs recorded yet. Numbers will appear here as soon as the first pickup is sent from the tracker app.</div>
 
 <div id="report" class="hide">
+
+  <div class="card" id="card-source-split">
+    <h2>Inpatient vs. PCU</h2>
+    <div id="source-split"></div>
+    <div class="note">Two different workflows with very different baselines — kept separable so one doesn't mask the other.</div>
+  </div>
+
+  <div class="srcfilter" id="source-filter"></div>
+  <div id="filter-empty" class="banner info hide"></div>
+
+  <div id="report-body">
 
   <div class="card">
     <h2>Headline averages</h2>
@@ -162,7 +196,8 @@
   <div class="card">
     <h2>Compounding: total time by number of delays</h2>
     <div id="chart-compound"></div>
-    <div class="note">The core claim of this app — whether stacked delays cost more than the sum of their parts.</div>
+    <div id="compound-callout"></div>
+    <div class="note">The core claim of this app — whether stacked delays cost more than the sum of their parts. Counts distinct delay types, so a timer stopped and restarted still counts once.</div>
   </div>
 
   <div class="card">
@@ -202,6 +237,7 @@
     <div id="chart-trend"></div>
   </div>
 
+  </div>
 </div>
 
 <div class="foot">
@@ -270,14 +306,25 @@ function computeStats(rows){
     return { ...v, firedCount: fired.length, firedPct: n ? fired.length/n : 0, avgWhenFired: avg(fired, v.key+"_sec") };
   });
 
+  // How many distinct delay types fired (0-3), not delay_count — that column
+  // counts episodes, so one timer stopped and restarted would inflate it.
+  const distinctDelays = r => VARS.filter(v => num(r[v.key+"_episodes"]) > 0).length;
   const byDelayCount = {};
-  rows.forEach(r => {
-    const dc = num(r.delay_count);
-    (byDelayCount[dc] = byDelayCount[dc] || []).push(r);
-  });
+  rows.forEach(r => { const dc = distinctDelays(r); (byDelayCount[dc] = byDelayCount[dc] || []).push(r); });
   const compound = Object.keys(byDelayCount).map(Number).sort((a,b)=>a-b).map(dc => ({
     delayCount: dc, n: byDelayCount[dc].length, avgTotal: avg(byDelayCount[dc], "total_sec")
   }));
+  // Percent jump from the previous bucket — the compounding evidence.
+  compound.forEach((c, i) => {
+    const prev = i > 0 ? compound[i-1] : null;
+    c.deltaPct = (prev && prev.avgTotal) ? (c.avgTotal - prev.avgTotal)/prev.avgTotal : null;
+    c.prevLabel = prev ? (prev.delayCount === 0 ? "clean" : prev.delayCount + (prev.delayCount===1?" delay":" delays")) : null;
+  });
+  const baseline = compound.find(c => c.delayCount === 0);
+  compound.forEach(c => {
+    c.vsCleanPct = (baseline && baseline.avgTotal && c.delayCount > 0)
+      ? (c.avgTotal - baseline.avgTotal)/baseline.avgTotal : null;
+  });
 
   const pairs = PAIRS.map(p => {
     const co = rows.filter(r => num(r[p.col]) > 0);
@@ -308,6 +355,24 @@ function computeStats(rows){
   };
 }
 
+const SOURCES = [
+  { key:"Inpatient", color:"var(--s2)" },
+  { key:"PCU",       color:"var(--s3)" }
+];
+
+// Runs logged before pickup_source existed have a blank value.
+function sourceOf(r){ return (r.pickup_source || "").trim(); }
+
+function computeSourceSplit(rows){
+  const avg = (arr, key) => arr.length ? arr.reduce((s,r)=>s+num(r[key]),0)/arr.length : null;
+  const groups = SOURCES.map(s => {
+    const g = rows.filter(r => sourceOf(r) === s.key);
+    return { ...s, n:g.length, avgTotal:avg(g,"total_sec"), avgDelay:avg(g,"any_delay_sec") };
+  });
+  const untagged = rows.filter(r => !sourceOf(r)).length;
+  return { groups, untagged, allAvg: avg(rows,"total_sec"), allN: rows.length };
+}
+
 /* ---------------------------- render helpers ---------------------------- */
 function barChart(container, items, opts){
   opts = opts || {};
@@ -328,10 +393,28 @@ function barChart(container, items, opts){
     track.appendChild(fill);
     const val = document.createElement("div"); val.className = "bar-val mono";
     val.textContent = opts.formatter ? opts.formatter(item) : item.value;
+    if (item.delta){
+      const d = document.createElement("span"); d.className = "bar-delta"; d.textContent = item.delta;
+      val.appendChild(d);
+    }
     row.appendChild(label); row.appendChild(track); row.appendChild(val);
     container.appendChild(row);
   });
   if (!items.length) container.innerHTML = '<div class="note">Not enough data yet.</div>';
+}
+
+function renderSourceSplit(container, split){
+  const max = Math.max(1, ...split.groups.map(g => g.avgTotal || 0), split.allAvg || 0);
+  const row = (label, n, value, color) => `
+    <div class="split-row">
+      <div class="split-label">${label}<span class="n">${n} ${n===1?"run":"runs"}</span></div>
+      <div class="split-track"><div class="split-fill" style="width:${Math.max(2,(value||0)/max*100)}%;background:${color}"></div></div>
+      <div class="split-val mono">${fmt(value)}</div>
+    </div>`;
+  container.innerHTML =
+    split.groups.map(g => row(g.key, g.n, g.avgTotal, g.color)).join("") +
+    row("All runs", split.allN, split.allAvg, "var(--s1)") +
+    (split.untagged ? `<div class="note">${split.untagged} run${split.untagged===1?"":"s"} logged before pickup source was tracked — counted in All runs only.</div>` : "");
 }
 
 function lineChart(container, points){
@@ -364,6 +447,20 @@ function lineChart(container, points){
     </svg>`;
 }
 
+function renderCompoundCallout(compound){
+  const el = $("compound-callout");
+  const clean = compound.find(c => c.delayCount === 0);
+  const worst = compound.filter(c => c.delayCount > 0).pop();
+  if (!clean || !worst || !clean.avgTotal || worst.vsCleanPct === null){ el.innerHTML = ""; return; }
+  const mult = worst.avgTotal / clean.avgTotal;
+  el.innerHTML = `<div class="callout">
+    <div class="callout-big">${mult.toFixed(1)}×</div>
+    <div class="callout-text">A run with ${worst.delayCount} delay${worst.delayCount===1?"":"s"} takes
+      <strong>${mult.toFixed(1)} times</strong> as long as a clean run —
+      ${fmt(worst.avgTotal)} vs. ${fmt(clean.avgTotal)}.</div>
+  </div>`;
+}
+
 function renderTable(tbody, rows, formatRow, colspan){
   tbody.innerHTML = rows.length ? rows.map(formatRow).join("") : `<tr><td colspan="${colspan||4}" class="note">No data yet.</td></tr>`;
 }
@@ -390,8 +487,10 @@ function render(stats){
 
   barChart($("chart-compound"), stats.compound.map(c => ({
     label: c.delayCount===0 ? "0 delays (clean)" : c.delayCount + (c.delayCount===1?" delay":" delays"),
-    value: c.avgTotal, n: c.n, color:"var(--s1)"
+    value: c.avgTotal, n: c.n, color:"var(--s1)",
+    delta: c.vsCleanPct === null ? "" : "+" + Math.round(c.vsCleanPct*100) + "% vs clean"
   })), { formatter: item => fmt(item.value) + " (n=" + item.n + ")" });
+  renderCompoundCallout(stats.compound);
 
   renderTable($("tbl-pairs"), stats.pairs, p => `<tr>
     <td>${p.label}</td>
@@ -410,7 +509,35 @@ function render(stats){
   lineChart($("chart-trend"), stats.trend);
 }
 
-/* ---------------------------- boot ---------------------------- */
+/* ---------------------------- filter + boot ---------------------------- */
+let allRows = [];
+let activeSource = "All";
+
+function applyFilter(){
+  const rows = activeSource === "All" ? allRows : allRows.filter(r => sourceOf(r) === activeSource);
+  document.querySelectorAll("#source-filter button").forEach(b =>
+    b.classList.toggle("on", b.dataset.source === activeSource));
+  if (!rows.length){
+    $("report-body").classList.add("hide");
+    $("filter-empty").classList.remove("hide");
+    $("filter-empty").textContent = `No ${activeSource} runs recorded yet.`;
+    return;
+  }
+  $("filter-empty").classList.add("hide");
+  $("report-body").classList.remove("hide");
+  render(computeStats(rows));
+}
+
+function buildFilter(){
+  const counts = { All: allRows.length };
+  SOURCES.forEach(s => counts[s.key] = allRows.filter(r => sourceOf(r) === s.key).length);
+  $("source-filter").innerHTML = ["All", ...SOURCES.map(s=>s.key)].map(k =>
+    `<button data-source="${k}">${k} (${counts[k]})</button>`).join("");
+  document.querySelectorAll("#source-filter button").forEach(b => {
+    b.addEventListener("click", () => { activeSource = b.dataset.source; applyFilter(); });
+  });
+}
+
 async function load(){
   $("banner-loading").classList.remove("hide");
   $("banner-error").classList.add("hide");
@@ -424,9 +551,12 @@ async function load(){
       $("banner-empty").classList.remove("hide");
       return;
     }
-    render(computeStats(payload.rows));
+    allRows = payload.rows;
+    renderSourceSplit($("source-split"), computeSourceSplit(allRows));
+    buildFilter();
+    applyFilter();
     $("report").classList.remove("hide");
-    $("foot-updated").textContent = "Updated " + new Date().toLocaleString([], {dateStyle:"medium", timeStyle:"short"}) + " · " + payload.rows.length + " runs";
+    $("foot-updated").textContent = "Updated " + new Date().toLocaleString([], {dateStyle:"medium", timeStyle:"short"}) + " · " + allRows.length + " runs";
   } catch (e) {
     $("banner-loading").classList.add("hide");
     $("banner-error").textContent = e.message;

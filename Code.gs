@@ -35,7 +35,7 @@ function doPost(e) {
       return json_({ ok: true, added: 0, message: 'Connected' });
     }
 
-    var header = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var header = syncHeader_(sheet, columns);
     var existing = getExistingIds_(sheet, header);
     var toAppend = [];
     var skipped = 0;
@@ -111,6 +111,20 @@ function getSheet_(columns) {
     sheet.setFrozenRows(1);
   }
   return sheet;
+}
+
+// Appends any columns the app knows about but the sheet doesn't, so a schema
+// addition doesn't silently drop data. Only ever appends — existing columns
+// keep their positions, so old rows stay aligned.
+function syncHeader_(sheet, columns) {
+  var header = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  var missing = columns.filter(function (col) { return header.indexOf(col) === -1; });
+  if (missing.length) {
+    sheet.getRange(1, header.length + 1, 1, missing.length).setValues([missing]);
+    sheet.getRange(1, header.length + 1, 1, missing.length).setFontWeight('bold');
+    header = header.concat(missing);
+  }
+  return header;
 }
 
 function getExistingIds_(sheet, header) {

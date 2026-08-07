@@ -39,14 +39,25 @@
   }
   .mono{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
 
-  header{display:flex;align-items:baseline;justify-content:space-between;margin:2px 0 14px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 14px}
   header h1{
     font-size:.82rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
     margin:0;color:var(--text);
   }
   header .sub{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-  .linkish{background:none;border:none;color:var(--muted);font-size:.72rem;letter-spacing:.08em;
-    text-transform:uppercase;padding:6px 2px;cursor:pointer;width:auto}
+  .nav-pills{display:flex;gap:6px;flex:0 0 auto}
+  .nav-pill{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:auto;min-height:0;margin-top:0;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:999px;
+    color:var(--text);font-size:.68rem;font-weight:650;letter-spacing:.06em;text-transform:uppercase;
+    padding:9px 15px;text-decoration:none;cursor:pointer;white-space:nowrap;
+  }
+  .nav-pill:active{background:var(--line)}
+  .pill-insights{background:linear-gradient(135deg,#2a78d6,#3987e5);border-color:transparent;color:#fff}
+  .pill-insights:active{background:#2660b0}
+  .pill-setup{background:linear-gradient(135deg,#7A2350,var(--wine));border-color:transparent;color:#fff}
+  .pill-setup:active{background:#7A2350}
 
   .card{
     background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
@@ -78,6 +89,7 @@
   .b-live{background:var(--wine);color:#fff}
   .b-stop{background:var(--warn);color:#2A0A07}
   .b-quiet{background:var(--panel-2);color:var(--text);border:1px solid var(--line);min-height:48px;font-size:.9rem}
+  .b-cancel{background:var(--panel-2);color:var(--warn);border:1px solid rgba(224,90,78,.4);min-height:44px;font-size:.85rem}
   .b-arrive{background:var(--text);color:#0E1116;min-height:64px;font-size:1.05rem}
   .row2{display:flex;gap:10px}
   .row2>button{flex:1}
@@ -129,7 +141,10 @@
     <h1>Turnaround Tracker</h1>
     <div class="sub" id="hdr-state">Ready</div>
   </div>
-  <button class="linkish" id="btn-settings" style="width:auto">Setup</button>
+  <div class="nav-pills">
+    <a class="nav-pill pill-insights" id="link-analysis" href="analysis.html">Insights</a>
+    <button class="nav-pill pill-setup" id="btn-settings">Setup</button>
+  </div>
 </header>
 
 <div id="banner-recover" class="banner warn hide">
@@ -177,6 +192,7 @@
       </div>
     </div>
     <div class="digits mono idle" id="d-master">00:00</div>
+    <div class="desc mono" id="master-clock"></div>
     <div class="desc">Door to door — leaving the lab until the patient is back in the room.</div>
     <button class="b-go" id="btn-master">Depart for floor</button>
 
@@ -226,6 +242,7 @@
   </div>
 
   <button class="b-arrive hide" id="btn-arrive">Arrive in cath lab — stop all</button>
+  <button class="b-cancel hide" id="btn-cancel-run" style="margin-top:8px">Cancel this run — start over</button>
 </section>
 
 <!-- ============ REVIEW / EXPORT ============ -->
@@ -233,6 +250,7 @@
   <div class="card">
     <div class="eyebrow"><span>Run summary</span><span id="review-clean"></span></div>
     <div class="digits mono" id="r-total">00:00</div>
+    <div class="desc mono" id="r-clock"></div>
     <div class="desc">Total turnaround, door to door.</div>
     <table>
       <tr><td>Moving the patient<span class="note">No delay running</span></td><td class="mono" id="r-moving">—</td></tr>
@@ -322,7 +340,10 @@ const store = (() => {
    in-app field for it, so no other user can point it elsewhere.
    Paste your Apps Script /exec URL between the quotes:
 ================================================================= */
-const SHEET_URL = "PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE";
+const SHEET_URL = "https://script.google.com/macros/s/AKfycbxwAKDoF5DOISDUdyT_2clYZVko7ITkXpzf1yLpJyorfIzer4A8PsabyTZW6nScq0pDLQ/exec";
+
+// Self-hosted, read-only analysis dashboard (analysis.html), same repo.
+const REPORT_URL = "analysis.html";
 
 const K = { RUN:"clt_run", CFG:"clt_cfg", QUEUE:"clt_queue", UNITS:"clt_units" };
 const VARS = ["paperwork","meds","transfer"];
@@ -344,6 +365,10 @@ function fmt(sec){
   const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
   const mm = String(m).padStart(2,"0"), ss = String(s).padStart(2,"0");
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+function fmtClock(ms){
+  const d = new Date(ms);
+  return String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
 }
 function newRun(){
   return {
@@ -422,6 +447,9 @@ function render(){
 
   $("d-master").textContent = fmt(mSec);
   $("d-master").classList.toggle("idle", !run.startedAt);
+  $("master-clock").textContent = !run.startedAt ? "" :
+    run.endedAt ? `Departed ${fmtClock(run.startedAt)} → Arrived ${fmtClock(run.endedAt)}`
+                : `Departed ${fmtClock(run.startedAt)}`;
 
   for (const v of VARS){
     const sec = durOf(v, at), open = !!openSeg(v), n = segsOf(v).length;
@@ -468,6 +496,7 @@ function render(){
   $("hdr-state").textContent = run.endedAt ? "Review" : (live ? "On the floor" : "Ready");
   $("btn-master").classList.toggle("hide", !!run.startedAt);
   $("btn-arrive").classList.toggle("hide", !live);
+  $("btn-cancel-run").classList.toggle("hide", !live);
 }
 
 function startTicker(){ stopTicker(); ticker = setInterval(render, 500); }
@@ -501,11 +530,13 @@ function arrive(){
 
 /* ---------------------------- payload ---------------------------- */
 const COLUMNS = [
-  "run_id","date","depart_time","observer","source","unit","room_type","mobility",
+  "run_id","date","depart_time","observer","unit","room_type","mobility",
   "total_sec","moving_sec","any_delay_sec","concurrent_sec","overlap_sec",
   "paperwork_sec","paperwork_episodes","meds_sec","meds_episodes","transfer_sec","transfer_episodes",
   "pair_paperwork_meds_sec","pair_paperwork_transfer_sec","pair_meds_transfer_sec",
-  "delay_count","first_delay","delay_order","clean_run","notes","segments_json","app_version"
+  "delay_count","first_delay","delay_order","clean_run","notes","segments_json","app_version",
+  // Appended after app_version — never insert mid-array, existing sheet rows would misalign.
+  "pickup_source"
 ];
 
 function buildRow(){
@@ -527,7 +558,6 @@ function buildRow(){
     date: `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`,
     depart_time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
     observer: cfg.observer || "",
-    source: run.meta.source,
     unit: run.meta.unit, room_type: run.meta.room, mobility: run.meta.mobility,
     total_sec: r(total),
     moving_sec: r(total - any),
@@ -546,7 +576,8 @@ function buildRow(){
     clean_run: run.segs.length === 0 ? "TRUE" : "FALSE",
     notes: run.meta.notes,
     segments_json: JSON.stringify(run.segs.map(s => [s.v[0], r((s.in-run.startedAt)/1000), r((s.out-run.startedAt)/1000)])),
-    app_version: APP_VERSION
+    app_version: APP_VERSION,
+    pickup_source: run.meta.source
   };
 }
 
@@ -556,6 +587,7 @@ function showReview(){
   const all = intervals(at);
   const any = unionSec(all), total = masterSec(at);
   $("r-total").textContent = fmt(total);
+  $("r-clock").textContent = `Departed ${fmtClock(run.startedAt)} → Arrived ${fmtClock(run.endedAt)}`;
   $("r-moving").textContent = fmt(total - any);
   $("r-any").textContent = fmt(any);
   $("r-conc").textContent = fmt(depthSec(all,2));
@@ -674,6 +706,17 @@ $("btn-master").addEventListener("click", depart);
 $("btn-arrive").addEventListener("click", arrive);
 VARS.forEach(v => $("btn-"+v).addEventListener("click", () => toggleVar(v)));
 
+$("btn-cancel-run").addEventListener("click", () => {
+  if (!confirm("Cancel this run and start over? Everything timed so far will be discarded.")) return;
+  stopTicker(); releaseScreen(); store.del(K.RUN);
+  run = newRun();
+  $("t-notes").value = "";
+  $("chip-notes").textContent = "Empty";
+  $("ribbon").classList.add("hide");
+  render();
+  window.scrollTo(0,0);
+});
+
 document.querySelectorAll(".src").forEach(b => {
   b.addEventListener("click", () => {
     if (run.startedAt) return;
@@ -736,6 +779,7 @@ window.addEventListener("beforeunload", e => {
 
 /* ---------------------------- boot ---------------------------- */
 (function boot(){
+  if (REPORT_URL) $("link-analysis").href = REPORT_URL;
   $("storage-note").textContent = store.persistent
     ? "Runs and unsent rows are kept on this phone until they reach the sheet."
     : "This preview can't save to the phone. Add the file to your home screen or host it so unsent runs survive a refresh.";
