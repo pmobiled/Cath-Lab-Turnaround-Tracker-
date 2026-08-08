@@ -102,6 +102,12 @@
 
   .bar-delta{display:block;font-size:.68rem;color:var(--serious);font-weight:600}
 
+  /* 8-column stat grid: scrolls inside itself so the page never scrolls sideways */
+  .tscroll{overflow-x:auto;margin-top:14px;-webkit-overflow-scrolling:touch}
+  .statgrid{min-width:520px}
+  .statgrid th,.statgrid td{white-space:nowrap;padding-right:12px}
+  .statgrid td:first-child,.statgrid th:first-child{position:sticky;left:0;background:var(--panel)}
+
   .callout{display:flex;align-items:center;gap:14px;margin-top:14px;padding:14px;
     background:rgba(236,131,90,.08);border:1px solid rgba(236,131,90,.35);border-radius:10px}
   .callout-big{font-size:2.1rem;font-weight:700;color:var(--serious);line-height:1;flex:0 0 auto}
@@ -360,17 +366,84 @@ const SOURCES = [
   { key:"PCU",       color:"var(--s3)" }
 ];
 
-// Runs logged before pickup_source existed have a blank value.
-function sourceOf(r){ return (r.pickup_source || "").trim(); }
+// Which cohort a run belongs to. The explicit tag wins when present, but runs
+// logged before pickup_source existed (app < 2.3) have no tag at all — and runs
+// can also arrive untagged if the receiver drops the column. Everywhere in this
+// lab, "PCU" is the pre/post area and every other unit is an inpatient floor,
+// so unit is a reliable fallback rather than losing the run to "unknown".
+function sourceOf(r){
+  const explicit = (r.pickup_source || "").trim();
+  if (explicit) return explicit;
+  const unit = (r.unit || "").trim();
+  if (!unit) return "";
+  return /^pcu\b/i.test(unit) ? "PCU" : "Inpatient";
+}
+function isInferred(r){ return !(r.pickup_source || "").trim() && !!(r.unit || "").trim(); }
+
+/* -------- descriptive stats, incl. spread (the variance argument) -------- */
+function mean(xs){ return xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : null; }
+function median(xs){
+  if (!xs.length) return null;
+  const s = xs.slice().sort((a,b)=>a-b), m = Math.floor(s.length/2);
+  return s.length % 2 ? s[m] : (s[m-1]+s[m])/2;
+}
+// Sample SD (n-1). Undefined for a single run — don't imply precision we lack.
+function stdev(xs){
+  if (xs.length < 2) return null;
+  const m = mean(xs);
+  return Math.sqrt(xs.reduce((a,x)=>a+(x-m)**2,0)/(xs.length-1));
+}
+
+function cohortStats(label, color, rows){
+  const totals = rows.map(r => num(r.total_sec));
+  const delays = rows.map(r => num(r.any_delay_sec));
+  const cleanN = rows.filter(r => isTrue(r.clean_run)).length;
+  return {
+    label, color, n: rows.length,
+    mean: mean(totals), median: median(totals),
+    min: totals.length ? Math.min(...totals) : null,
+    max: totals.length ? Math.max(...totals) : null,
+    sd: stdev(totals),
+    meanDelay: mean(delays),
+    cleanRate: rows.length ? cleanN/rows.length : null
+  };
+}
 
 function computeSourceSplit(rows){
-  const avg = (arr, key) => arr.length ? arr.reduce((s,r)=>s+num(r[key]),0)/arr.length : null;
-  const groups = SOURCES.map(s => {
-    const g = rows.filter(r => sourceOf(r) === s.key);
-    return { ...s, n:g.length, avgTotal:avg(g,"total_sec"), avgDelay:avg(g,"any_delay_sec") };
-  });
+  const groups = SOURCES.map(s =>
+    cohortStats(s.key, s.color, rows.filter(r => sourceOf(r) === s.key)));
+  const all = cohortStats("All runs", "var(--s1)", rows);
   const untagged = rows.filter(r => !sourceOf(r)).length;
-  return { groups, untagged, allAvg: avg(rows,"total_sec"), allN: rows.length };
+  const inferred = rows.filter(isInferred).length;
+
+  // The headline differential: how much longer the slower cohort runs, and
+  // how much wider its spread is. Both only mean something with data on
+  // each side, so everything here is null-guarded.
+  const [inpatient, pcu] = groups;
+  let diff = null;
+  if (inpatient.n && pcu.n && pcu.mean) {
+    const slower = inpatient.mean >= pcu.mean ? inpatient : pcu;
+    const faster = slower === inpatient ? pcu : inpatient;
+    // Spread is a separate question from speed — the slower cohort is not
+    // necessarily the more erratic one, so resolve the two independently and
+    // always express the ratio as wider/narrower so it reads >= 1x.
+    let sdRatio = null, sdWider = null, sdWiderIsSlower = null;
+    if (slower.sd && faster.sd){
+      const wide = slower.sd >= faster.sd ? slower : faster;
+      const narrow = wide === slower ? faster : slower;
+      sdRatio = narrow.sd ? wide.sd/narrow.sd : null;
+      sdWider = wide.label;
+      sdWiderIsSlower = wide === slower;
+    }
+    diff = {
+      slower: slower.label, faster: faster.label,
+      absSec: slower.mean - faster.mean,
+      pct: faster.mean ? (slower.mean - faster.mean)/faster.mean : null,
+      sdRatio, sdWider, sdWiderIsSlower
+    };
+  }
+  const thin = groups.some(g => g.n > 0 && g.n < 5);
+  return { groups, all, untagged, inferred, diff, thin };
 }
 
 /* ---------------------------- render helpers ---------------------------- */
@@ -404,17 +477,59 @@ function barChart(container, items, opts){
 }
 
 function renderSourceSplit(container, split){
-  const max = Math.max(1, ...split.groups.map(g => g.avgTotal || 0), split.allAvg || 0);
-  const row = (label, n, value, color) => `
+  const rows = [...split.groups, split.all];
+  const max = Math.max(1, ...rows.map(g => g.mean || 0));
+  const bar = g => `
     <div class="split-row">
-      <div class="split-label">${label}<span class="n">${n} ${n===1?"run":"runs"}</span></div>
-      <div class="split-track"><div class="split-fill" style="width:${Math.max(2,(value||0)/max*100)}%;background:${color}"></div></div>
-      <div class="split-val mono">${fmt(value)}</div>
+      <div class="split-label">${g.label}<span class="n">${g.n} ${g.n===1?"run":"runs"}</span></div>
+      <div class="split-track"><div class="split-fill" style="width:${Math.max(2,(g.mean||0)/max*100)}%;background:${g.color}"></div></div>
+      <div class="split-val mono">${fmt(g.mean)}</div>
     </div>`;
-  container.innerHTML =
-    split.groups.map(g => row(g.key, g.n, g.avgTotal, g.color)).join("") +
-    row("All runs", split.allN, split.allAvg, "var(--s1)") +
-    (split.untagged ? `<div class="note">${split.untagged} run${split.untagged===1?"":"s"} logged before pickup source was tracked — counted in All runs only.</div>` : "");
+
+  // Differential first — it's the point of the card.
+  let callout = "";
+  if (split.diff){
+    const d = split.diff;
+    callout = `<div class="callout">
+      <div class="callout-big">+${d.pct === null ? "—" : Math.round(d.pct*100) + "%"}</div>
+      <div class="callout-text"><strong>${d.slower}</strong> pickups average
+        <strong>${fmt(d.absSec)} longer</strong> than ${d.faster}
+        (${fmt(rows.find(g=>g.label===d.slower).mean)} vs. ${fmt(rows.find(g=>g.label===d.faster).mean)}).${
+        d.sdRatio ? (d.sdWiderIsSlower
+          ? ` They're also <strong>${d.sdRatio.toFixed(1)}× more variable</strong>, so they're the harder ones to schedule around.`
+          : ` ${d.sdWider} runs are less predictable though — <strong>${d.sdRatio.toFixed(1)}× more variable</strong> — so the slower average and the wider spread sit on opposite sides.`) : ""
+      }</div></div>`;
+  }
+
+  const cell = v => v === null ? "—" : fmt(v);
+  const table = `
+    <div class="tscroll">
+    <table class="statgrid">
+      <thead><tr>
+        <th>Cohort</th><th class="num">Runs</th><th class="num">Mean</th>
+        <th class="num">Median</th><th class="num">Fastest</th><th class="num">Slowest</th>
+        <th class="num">SD</th><th class="num">Clean</th>
+      </tr></thead>
+      <tbody>${rows.map(g => `<tr>
+        <td>${g.label}</td>
+        <td class="num">${g.n}</td>
+        <td class="num">${cell(g.mean)}</td>
+        <td class="num">${cell(g.median)}</td>
+        <td class="num">${cell(g.min)}</td>
+        <td class="num">${cell(g.max)}</td>
+        <td class="num">${g.sd === null ? "—" : fmt(g.sd)}</td>
+        <td class="num">${g.cleanRate === null ? "—" : pct(g.cleanRate)}</td>
+      </tr>`).join("")}</tbody>
+    </table>
+    </div>`;
+
+  const notes = [];
+  if (split.inferred) notes.push(`${split.inferred} run${split.inferred===1?"":"s"} predate the Inpatient/PCU button — cohort read from the unit name (PCU vs. anything else).`);
+  if (split.untagged) notes.push(`${split.untagged} run${split.untagged===1?"":"s"} have no unit recorded and count only in All runs.`);
+  if (split.thin) notes.push(`Small sample: at least one cohort has under 5 runs, so treat SD and percentages as directional until more pickups are logged.`);
+
+  container.innerHTML = callout + rows.map(bar).join("") + table +
+    notes.map(n => `<div class="note">${n}</div>`).join("");
 }
 
 function lineChart(container, points){
